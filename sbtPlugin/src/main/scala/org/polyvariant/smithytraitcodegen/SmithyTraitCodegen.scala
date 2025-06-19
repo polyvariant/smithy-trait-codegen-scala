@@ -150,7 +150,7 @@ object SmithyTraitCodegen {
       .filter(os.isFile)
       .foreach { p =>
         if (p.toIO.name == "software.amazon.smithy.model.traits.TraitService") {
-          args.externalProviders.foreach(provider => os.write.append(p, provider))
+          args.externalProviders.foreach(provider => os.write.append(p, provider + "\n"))
         }
       }
 
