@@ -39,11 +39,21 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
       "Dependencies to be added into codegen model"
     )
 
+    val smithyTraitCodegenSourceDirectory = settingKey[File](
+      "The directory where the smithy sources are located"
+    )
+
+    val smithyTraitCodegenTargetDirectory = settingKey[File](
+      "The directory where the generated Java sources and resources will be placed"
+    )
+
   }
 
   import autoImport.*
 
   override def projectSettings: Seq[Setting[?]] = Seq(
+    smithyTraitCodegenSourceDirectory := (Compile / resourceDirectory).value / "META-INF" / "smithy",
+    smithyTraitCodegenTargetDirectory := (Compile / target).value,
     Keys.generateSmithyTraits := Def.task {
       import sbt.util.CacheImplicits.*
       val s = (Compile / streams).value
@@ -64,8 +74,8 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
       val args = SmithyTraitCodegen.Args(
         javaPackage = smithyTraitCodegenJavaPackage.value,
         smithyNamespace = smithyTraitCodegenNamespace.value,
-        targetDir = os.Path((Compile / target).value),
-        smithySourcesDir = PathRef((Compile / resourceDirectory).value / "META-INF" / "smithy"),
+        targetDir = os.Path(smithyTraitCodegenTargetDirectory.value),
+        smithySourcesDir = PathRef(smithyTraitCodegenSourceDirectory.value),
         dependencies = jars.map(PathRef(_)).toList,
       )
       val cachedCodegen =
@@ -82,7 +92,7 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
                   .fold {
                     SmithyTraitCodegen.generate(codegenArgs)
                   } { last =>
-                    logger.info(s"Using cached result of smithy-trait-codegen")
+                    logger.info("Using cached result of smithy-trait-codegen")
                     last
                   }
               }

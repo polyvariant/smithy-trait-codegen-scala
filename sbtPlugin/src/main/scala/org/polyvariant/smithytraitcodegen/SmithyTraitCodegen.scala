@@ -136,7 +136,11 @@ object SmithyTraitCodegen {
       .build()
     val plugin = new TraitCodegenPlugin()
     plugin.execute(context)
-    os.move(genDir / "META-INF", metaDir / "META-INF")
+
+    // If there were no shapes to generate, this won't exist
+    if (os.exists(genDir / "META-INF"))
+      os.move(genDir / "META-INF", metaDir / "META-INF")
+
     Output(metaDir = metaDir.toIO, javaDir = genDir.toIO)
   }
 
