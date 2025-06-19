@@ -38,12 +38,13 @@ object SmithyTraitCodegen {
     targetDir: os.Path,
     smithySourcesDir: PathRef,
     dependencies: List[PathRef],
+    externalProviders: List[String],
   )
 
   object Args {
 
     // format: off
-    private type ArgsDeconstructed = String :*: String :*: os.Path :*: PathRef :*: List[PathRef] :*: LNil
+    private type ArgsDeconstructed = String :*: String :*: os.Path :*: PathRef :*: List[PathRef] :*: List[String] :*: LNil
     // format: on
 
     private implicit val pathFormat: JsonFormat[os.Path] = BasicJsonProtocol
@@ -56,6 +57,7 @@ object SmithyTraitCodegen {
           ("targetDir", args.targetDir) :*:
           ("smithySourcesDir", args.smithySourcesDir) :*:
           ("dependencies", args.dependencies) :*:
+          ("externalProviders", args.externalProviders) :*:
           LNil
       },
       {
@@ -64,6 +66,7 @@ object SmithyTraitCodegen {
             (_, targetDir) :*:
             (_, smithySourcesDir) :*:
             (_, dependencies) :*:
+            (_, externalProviders) :*:
             LNil =>
           Args(
             javaPackage = javaPackage,
@@ -71,6 +74,7 @@ object SmithyTraitCodegen {
             targetDir = targetDir,
             smithySourcesDir = smithySourcesDir,
             dependencies = dependencies,
+            externalProviders = externalProviders,
           )
       },
     )
@@ -140,6 +144,15 @@ object SmithyTraitCodegen {
     // If there were no shapes to generate, this won't exist
     if (os.exists(genDir / "META-INF"))
       os.move(genDir / "META-INF", metaDir / "META-INF")
+
+    os
+      .walk(metaDir, includeTarget = true)
+      .filter(os.isFile)
+      .foreach { p =>
+        if (p.toIO.name == "software.amazon.smithy.model.traits.TraitService") {
+          args.externalProviders.foreach(provider => os.write.append(p, provider))
+        }
+      }
 
     Output(metaDir = metaDir.toIO, javaDir = genDir.toIO)
   }
