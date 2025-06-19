@@ -1,0 +1,10 @@
+.direnv/
+.scala-build/
+**/target
+.bsp/
+
+node_modules/
+.smithy.lsp.log
+build/smithy
+transformed
+**/test/**/actual.smithy
