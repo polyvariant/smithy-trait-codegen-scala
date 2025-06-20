@@ -174,6 +174,7 @@ object SmithyTraitCodegen {
       .model(model)
       .fileManifest(manifest)
       .settings(
+        // See TraitCodegenSettings for available fields
         ObjectNode
           .builder()
           .withMember("package", args.javaPackage)
