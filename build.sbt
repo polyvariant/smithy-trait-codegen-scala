@@ -14,7 +14,6 @@ ThisBuild / scalaVersion := "2.12.20"
 ThisBuild / tlJdkRelease := Some(8)
 ThisBuild / tlFatalWarnings := false
 ThisBuild / tlCiDependencyGraphJob := false
-ThisBuild / resolvers ++= Resolver.sonatypeOssRepos("snapshots")
 
 ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
 
