@@ -54,7 +54,7 @@ lazy val sbtPlugin = project
         Seq("-Xmx1024M", "-Dplugin.version=" + version.value),
     scriptedBufferLog := false,
   )
-  .disablePlugins(MimaPlugin)
+  .disablePlugins(TypelevelMimaPlugin)
   .enablePlugins(SbtPlugin)
 
 lazy val root = project
