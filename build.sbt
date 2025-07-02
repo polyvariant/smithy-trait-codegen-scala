@@ -53,6 +53,11 @@ lazy val sbtPlugin = project
       scriptedLaunchOpts.value ++
         Seq("-Xmx1024M", "-Dplugin.version=" + version.value),
     scriptedBufferLog := false,
+    mimaBinaryIssueFilters ++= Seq(
+      ProblemFilters.exclude[DirectMissingMethodProblem](
+        "org.polyvariant.smithytraitcodegen.SmithyTraitCodegen#Args.argsIso"
+      )
+    ),
   )
   .enablePlugins(SbtPlugin)
 
