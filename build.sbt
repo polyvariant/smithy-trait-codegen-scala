@@ -1,5 +1,3 @@
-import com.typesafe.tools.mima.core.ProblemFilters
-import com.typesafe.tools.mima.core.DirectMissingMethodProblem
 ThisBuild / tlBaseVersion := "0.2"
 ThisBuild / organization := "org.polyvariant"
 ThisBuild / organizationName := "Polyvariant"
@@ -55,12 +53,8 @@ lazy val sbtPlugin = project
       scriptedLaunchOpts.value ++
         Seq("-Xmx1024M", "-Dplugin.version=" + version.value),
     scriptedBufferLog := false,
-    mimaBinaryIssueFilters ++= Seq(
-      ProblemFilters.exclude[DirectMissingMethodProblem](
-        "org.polyvariant.smithytraitcodegen.SmithyTraitCodegen#Args.argsIso"
-      )
-    ),
   )
+  .disablePlugins(MimaPlugin)
   .enablePlugins(SbtPlugin)
 
 lazy val root = project
