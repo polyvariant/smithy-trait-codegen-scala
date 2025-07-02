@@ -46,41 +46,18 @@ object SmithyTraitCodegen {
 
   object Args {
 
-    // format: off
-    private type ArgsDeconstructed = String :*: String :*: os.Path :*: PathRef :*: List[PathRef] :*: List[String] :*: LNil
-    // format: on
-
     private implicit val pathFormat: JsonFormat[os.Path] = BasicJsonProtocol
       .projectFormat[os.Path, File](p => p.toIO, file => os.Path(file))
 
-    implicit val argsIso = LList.iso[Args, ArgsDeconstructed](
-      {
-        args: Args => ("javaPackage", args.javaPackage) :*:
-          ("smithyNamespace", args.smithyNamespace) :*:
-          ("targetDir", args.targetDir) :*:
-          ("smithySourcesDir", args.smithySourcesDir) :*:
-          ("dependencies", args.dependencies) :*:
-          ("externalProviders", args.externalProviders) :*:
-          LNil
-      },
-      {
-        case (_, javaPackage) :*:
-            (_, smithyNamespace) :*:
-            (_, targetDir) :*:
-            (_, smithySourcesDir) :*:
-            (_, dependencies) :*:
-            (_, externalProviders) :*:
-            LNil =>
-          Args(
-            javaPackage = javaPackage,
-            smithyNamespace = smithyNamespace,
-            targetDir = targetDir,
-            smithySourcesDir = smithySourcesDir,
-            dependencies = dependencies,
-            externalProviders = externalProviders,
-          )
-      },
-    )
+    implicit val argsFmt: JsonFormat[Args] =
+      caseClass(Args.apply _, Args.unapply _)(
+        "javaPackage",
+        "smithyNamespace",
+        "targetDir",
+        "smithySourcesDir",
+        "dependencies",
+        "externalProviders",
+      )
 
   }
 
