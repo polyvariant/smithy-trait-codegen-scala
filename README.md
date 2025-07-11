@@ -20,6 +20,9 @@ In `build.sbt`:
 .settings(
   smithyTraitCodegenDependencies := Nil,
   smithyTraitCodegenNamespace := "my.ns",
+  // Note: this is the "root" package of generated output.
+  // Sub-namespaces of my.ns will be generated as sub-packages of this package, as seen from my.ns.
+  // For example, my.ns.foo will be generated as my.pkg.foo.
   smithyTraitCodegenJavaPackage := "my.pkg",
 )
 ```
