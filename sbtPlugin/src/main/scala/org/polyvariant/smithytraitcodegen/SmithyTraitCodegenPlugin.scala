@@ -62,7 +62,6 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
     Keys.generateSmithyTraits := Def.task {
       import sbt.util.CacheImplicits.*
       val s = (Compile / streams).value
-      val logger = sLog.value
 
       val report = update.value
       val dependencies = smithyTraitCodegenDependencies.value
@@ -84,26 +83,12 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
         dependencies = jars.map(PathRef(_)).toList,
         externalProviders = smithyTraitCodegenExternalProviders.value,
       )
+
       val cachedCodegen =
-        Tracked.inputChanged[SmithyTraitCodegen.Args, SmithyTraitCodegen.Output](
-          s.cacheStoreFactory.make("smithy-trait-codegen-args")
-        ) {
-          Function.untupled(
-            Tracked
-              .lastOutput[(Boolean, SmithyTraitCodegen.Args), SmithyTraitCodegen.Output](
-                s.cacheStoreFactory.make("smithy-trait-codegen-output")
-              ) { case ((inputChanged, codegenArgs), cached) =>
-                cached
-                  .filter(_ => !inputChanged)
-                  .fold {
-                    SmithyTraitCodegen.generate(codegenArgs)
-                  } { last =>
-                    logger.info("Using cached result of smithy-trait-codegen")
-                    last
-                  }
-              }
-          )
+        Cache.cached(s.cacheStoreFactory.make("smithy-trait-codegen")) {
+          SmithyTraitCodegen.generate
         }
+
       cachedCodegen(args)
     }.value,
     Compile / sourceGenerators += Def.task {
