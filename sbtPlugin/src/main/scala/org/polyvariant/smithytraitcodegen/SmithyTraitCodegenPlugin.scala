@@ -85,7 +85,7 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
       )
 
       val cachedCodegen =
-        Cache.cached(s.cacheDirectory) {
+        Cache.cached(s.cacheStoreFactory.make("smithy-trait-codegen")) {
           SmithyTraitCodegen.generate
         }
 
