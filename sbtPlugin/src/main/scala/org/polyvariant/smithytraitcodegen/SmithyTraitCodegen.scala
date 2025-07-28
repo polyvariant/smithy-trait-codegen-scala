@@ -88,23 +88,6 @@ object SmithyTraitCodegen {
 
   }
 
-  // Hack / workaround for https://github.com/smithy-lang/smithy/pull/2671
-  private def namespaceHackRequired(ns: String) =
-    ns.startsWith("smithy") && ns != "smithy" && !ns.startsWith("smithy.")
-
-  private def renameNamespaceForHack(ns: String) =
-    if (namespaceHackRequired(ns))
-      "hack" + ns
-    else
-      ns
-
-  private def replaceNamespaceRefsInFile(fileText: String, ns: String) =
-    if (namespaceHackRequired(ns)) {
-      fileText.replaceAll(s"hack$ns", ns)
-    } else {
-      fileText
-    }
-
   def generate(args: Args): Output = {
     val outputDir = args.targetDir / "smithy-trait-generator-output"
     val genDir = outputDir / "java"
@@ -114,37 +97,13 @@ object SmithyTraitCodegen {
 
     val manifest = FileManifest.create(genDir.toNIO)
 
-    val model =
-      args
-        .dependencies
-        .foldLeft(Model.assembler().addImport(args.smithySourcesDir.path.toNIO)) {
-          case (acc, dep) => acc.addImport(dep.path.toNIO)
-        }
-        .assemble()
-        .unwrap() match {
-        case model =>
-          if (namespaceHackRequired(args.smithyNamespace)) {
-            println("Applying namespace workaround - `hack` prefix will be used")
-
-            val renames =
-              model
-                .shapes()
-                .collect(Collectors.toList())
-                .asScala
-                .filter(_.getId().getNamespace() == args.smithyNamespace)
-                .map { shp =>
-                  shp.getId() ->
-                    shp.getId().withNamespace(renameNamespaceForHack(shp.getId().getNamespace()))
-                }
-                .toMap
-                .asJava
-
-            ModelTransformer
-              .create()
-              .renameShapes(model, renames)
-          } else
-            model
+    val model = args
+      .dependencies
+      .foldLeft(Model.assembler().addImport(args.smithySourcesDir.path.toNIO)) { case (acc, dep) =>
+        acc.addImport(dep.path.toNIO)
       }
+      .assemble()
+      .unwrap()
 
     val context = PluginContext
       .builder()
@@ -155,7 +114,7 @@ object SmithyTraitCodegen {
         ObjectNode
           .builder()
           .withMember("package", args.javaPackage)
-          .withMember("namespace", renameNamespaceForHack(args.smithyNamespace))
+          .withMember("namespace", args.smithyNamespace)
           .withMember("header", ArrayNode.builder.build())
           .withMember("excludeTags", ArrayNode.builder.withValue("nocodegen").build())
           .build()
@@ -167,13 +126,6 @@ object SmithyTraitCodegen {
     // If there were no shapes to generate, this won't exist
     if (os.exists(genDir / "META-INF"))
       os.move(genDir / "META-INF", metaDir / "META-INF")
-
-    os.walk(genDir)
-      .filter(os.isFile)
-      .filter(_.ext == "java")
-      .foreach { f =>
-        os.write.over(f, replaceNamespaceRefsInFile(os.read(f), args.smithyNamespace))
-      }
 
     os
       .walk(metaDir, includeTarget = true)
