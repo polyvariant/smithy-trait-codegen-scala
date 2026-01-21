@@ -10,7 +10,7 @@ ThisBuild / githubWorkflowPublishTargetBranches := Seq(
   RefPredicate.StartsWith(Ref.Tag("v")),
 )
 
-ThisBuild / scalaVersion := "2.12.20"
+ThisBuild / scalaVersion := "2.13.17"
 ThisBuild / tlJdkRelease := Some(8)
 ThisBuild / tlFatalWarnings := false
 
@@ -36,7 +36,7 @@ lazy val sbtPlugin = project
   .settings(
     name := "smithy-trait-codegen-sbt",
     commonSettings,
-    scalaVersion := "2.12.20",
+    scalaVersion := "2.13.17",
     libraryDependencies ++= Seq(
       "software.amazon.smithy" % "smithy-trait-codegen" % "1.61.0",
       "software.amazon.smithy" % "smithy-model" % "1.61.0",
