@@ -38,8 +38,8 @@ lazy val sbtPlugin = project
     commonSettings,
     scalaVersion := "2.12.20",
     libraryDependencies ++= Seq(
-      "software.amazon.smithy" % "smithy-trait-codegen" % "1.61.0",
-      "software.amazon.smithy" % "smithy-model" % "1.61.0",
+      "software.amazon.smithy" % "smithy-trait-codegen" % "1.66.0",
+      "software.amazon.smithy" % "smithy-model" % "1.66.0",
     ) ++ Seq(
       "com.lihaoyi" %% "os-lib" % "0.10.7"
     ),
