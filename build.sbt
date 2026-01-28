@@ -28,7 +28,7 @@ ThisBuild / githubWorkflowBuild ~= {
 
 val commonSettings = Seq(
   libraryDependencies ++= Seq(
-    "org.typelevel" %%% "weaver-cats" % "0.9.3" % Test
+    "org.typelevel" %%% "weaver-cats" % "0.11.3" % Test
   )
 )
 
