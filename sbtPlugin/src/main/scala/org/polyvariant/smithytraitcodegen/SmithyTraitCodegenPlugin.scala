@@ -93,22 +93,14 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
     }.value,
     Compile / sourceGenerators += Def.task {
       val codegenOutput = (Compile / Keys.generateSmithyTraits).value
-      cleanCopy(source = codegenOutput.javaDir, target = (Compile / sourceManaged).value / "java")
+      os.walk(os.Path(codegenOutput.javaDir)).map(_.toIO).filter(_.isFile()).toSeq
     },
     Compile / resourceGenerators += Def.task {
       val codegenOutput = (Compile / Keys.generateSmithyTraits).value
-      cleanCopy(source = codegenOutput.metaDir, target = (Compile / resourceManaged).value)
+      os.walk(os.Path(codegenOutput.metaDir)).map(_.toIO).filter(_.isFile()).toSeq
     }.taskValue,
     libraryDependencies ++= smithyTraitCodegenDependencies.value,
   )
-
-  private def cleanCopy(source: File, target: File) = {
-    val sourcePath = os.Path(source)
-    val targetPath = os.Path(target)
-    os.remove.all(targetPath)
-    os.copy(from = sourcePath, to = targetPath, createFolders = true)
-    os.walk(targetPath).map(_.toIO).filter(_.isFile())
-  }
 
   object Keys {
 
