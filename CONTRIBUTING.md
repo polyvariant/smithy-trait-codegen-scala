@@ -1,7 +1,7 @@
 ## Running trait codegen directly
 
 ```shell
-cs launch --contrib smithy-cli -- build
+./compile-sample.sh
 ```
 
-This will use `smithy-build.json` to directly launch the trait codegen.
+This will generate code for `sample-traits.smithy` into a temp directory, and compile it in there.
