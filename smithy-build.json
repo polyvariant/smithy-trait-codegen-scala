@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "maven": {
+    "dependencies": ["software.amazon.smithy:smithy-trait-codegen:1.68.0"]
+  },
+  "sources": ["model"],
+  "projections": {
+    "source": {
+      "plugins": {
+        "trait-codegen": {
+          "namespace": "example.traits",
+          "package": "example.traits.generated",
+          "header": []
+        }
+      }
+    }
+  }
+}
