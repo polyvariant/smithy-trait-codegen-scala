@@ -2,6 +2,9 @@ $version: "2"
 
 namespace example.traits
 
-/// test: @trait
+/// test:
+///
+/// @emailFormat()
+/// string Email
 @trait
 structure sample {}
