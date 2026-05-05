@@ -70,10 +70,7 @@ object SmithyTraitCodegen {
       // format: on
 
     implicit val outputIso = LList.iso[Output, OutputDeconstructed](
-      output: Output =>
-        ("metaDir", output.metaDir) :*:
-          ("javaDir", output.javaDir) :*:
-          LNil,
+      output: Output => ("metaDir", output.metaDir) :*: ("javaDir", output.javaDir) :*: LNil,
       {
         case (_, metaDir) :*:
             (_, javaDir) :*:
