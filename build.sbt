@@ -26,6 +26,7 @@ ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
 // sbt-typelevel quotes matrixAdds values, but we need the raw GHA expression
 // `${{ fromJSON(...) }}` to render unquoted so it expands to the matrix array.
 // The placeholder below is rewritten in `githubWorkflowGenerate` below.
+// Tracked upstream: https://github.com/typelevel/sbt-typelevel/issues/887
 val scriptedTestPlaceholder = "PATCH_scripted_tests_from_needs"
 val scriptedTestExpansion = "${{ fromJSON(needs.scripted-discover.outputs.tests) }}"
 
@@ -74,6 +75,7 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
 // patch; the other regenerates, applies the patch in memory, and compares.
 // The CI workflow's "up to date" check calls the patched check task so it
 // sees the same form as what's on disk.
+// Tracked upstream: https://github.com/typelevel/sbt-typelevel/issues/887
 val patchScriptedMatrix: String => String =
   yaml =>
     yaml

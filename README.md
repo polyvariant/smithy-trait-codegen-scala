@@ -121,3 +121,5 @@ Then regenerate the workflow:
 ```sh
 sbt githubWorkflowGenerate
 ```
+
+> A simpler one-liner is being tracked upstream: [typelevel/sbt-typelevel#888](https://github.com/typelevel/sbt-typelevel/issues/888).
