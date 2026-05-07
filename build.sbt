@@ -1,4 +1,4 @@
-ThisBuild / tlBaseVersion := "0.2"
+ThisBuild / tlBaseVersion := "0.3"
 ThisBuild / organization := "org.polyvariant"
 ThisBuild / organizationName := "Polyvariant"
 ThisBuild / startYear := Some(2025)
@@ -163,6 +163,7 @@ lazy val core = project
       "software.amazon.smithy" % "smithy-trait-codegen" % "1.70.0",
       "software.amazon.smithy" % "smithy-model" % "1.70.0",
       "software.amazon.smithy" % "smithy-syntax" % "1.70.0",
+      "software.amazon.smithy" % "smithy-docgen" % "1.70.0",
       "com.lihaoyi" %% "os-lib" % "0.11.8",
       "org.scalameta" %% "munit" % "1.3.0" % Test,
     ),
