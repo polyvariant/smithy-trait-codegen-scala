@@ -51,37 +51,38 @@ object SmithyFormatPlugin extends AutoPlugin {
 
   import autoImport.*
 
-  private def configScopedSettings(config: Configuration): Seq[Setting[?]] = inConfig(config)(
-    Seq(
-      smithyFmtSourceDirectories := Seq(
-        (config / sourceDirectory).value / "smithy",
-        (config / resourceDirectory).value / "META-INF" / "smithy",
-      ),
-      smithyFmt := {
-        val log = streams.value.log
-        val roots = smithyFmtSourceDirectories.value.map(_.toPath)
-        val rewritten = SmithyFormat.formatAll(roots)
-        if (rewritten.isEmpty)
-          log.info(s"[smithyFmt] (${config.name}) no files needed formatting")
-        else {
-          rewritten.foreach(p => log.info(s"[smithyFmt] formatted ${p}"))
-          log.info(s"[smithyFmt] (${config.name}) reformatted ${rewritten.size} file(s)")
-        }
-      },
-      smithyFmtCheck := {
-        val log = streams.value.log
-        val roots = smithyFmtSourceDirectories.value.map(_.toPath)
-        val unformatted = SmithyFormat.checkAll(roots)
-        if (unformatted.nonEmpty) {
-          unformatted.foreach(p => log.error(s"[smithyFmtCheck] not formatted: ${p}"))
-          sys.error(
-            s"[smithyFmtCheck] (${config.name}) ${unformatted.size} Smithy file(s) would be reformatted"
-          )
-        } else
-          log.info(s"[smithyFmtCheck] (${config.name}) all Smithy files are formatted")
-      },
+  private def configScopedSettings(config: Configuration): Seq[Setting[?]] =
+    inConfig(config)(
+      Seq(
+        smithyFmtSourceDirectories := Seq(
+          (config / sourceDirectory).value / "smithy",
+          (config / resourceDirectory).value / "META-INF" / "smithy",
+        ),
+        smithyFmt := {
+          val log = streams.value.log
+          val roots = smithyFmtSourceDirectories.value.map(_.toPath)
+          val rewritten = SmithyFormat.formatAll(roots)
+          if (rewritten.isEmpty)
+            log.info(s"[smithyFmt] (${config.name}) no files needed formatting")
+          else {
+            rewritten.foreach(p => log.info(s"[smithyFmt] formatted ${p}"))
+            log.info(s"[smithyFmt] (${config.name}) reformatted ${rewritten.size} file(s)")
+          }
+        },
+        smithyFmtCheck := {
+          val log = streams.value.log
+          val roots = smithyFmtSourceDirectories.value.map(_.toPath)
+          val unformatted = SmithyFormat.checkAll(roots)
+          if (unformatted.nonEmpty) {
+            unformatted.foreach(p => log.error(s"[smithyFmtCheck] not formatted: ${p}"))
+            sys.error(
+              s"[smithyFmtCheck] (${config.name}) ${unformatted.size} Smithy file(s) would be reformatted"
+            )
+          } else
+            log.info(s"[smithyFmtCheck] (${config.name}) all Smithy files are formatted")
+        },
+      )
     )
-  )
 
   override def projectSettings: Seq[Setting[?]] =
     configScopedSettings(Compile) ++
@@ -89,14 +90,14 @@ object SmithyFormatPlugin extends AutoPlugin {
       Seq(
         smithyFmtAll := Def
           .sequential(
-            (Compile / smithyFmt),
-            (Test / smithyFmt),
+            Compile / smithyFmt,
+            Test / smithyFmt,
           )
           .value,
         smithyFmtCheckAll := Def
           .sequential(
-            (Compile / smithyFmtCheck),
-            (Test / smithyFmtCheck),
+            Compile / smithyFmtCheck,
+            Test / smithyFmtCheck,
           )
           .value,
       )

@@ -91,10 +91,11 @@ class SmithyFormatTest extends FunSuite {
     os.write(smithyRoot / "fromSmithy.smithy", unformatted, createFolders = true)
     os.write(metaInfRoot / "fromMetaInf.smithy", formatted, createFolders = true)
 
-    val found = SmithyFormat
-      .smithyFiles(Seq(toPath(smithyRoot), toPath(metaInfRoot)))
-      .map(_.getFileName.toString)
-      .toSet
+    val found =
+      SmithyFormat
+        .smithyFiles(Seq(toPath(smithyRoot), toPath(metaInfRoot)))
+        .map(_.getFileName.toString)
+        .toSet
     assertEquals(found, Set("fromSmithy.smithy", "fromMetaInf.smithy"))
   }
 

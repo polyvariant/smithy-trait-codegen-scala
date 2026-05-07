@@ -53,26 +53,24 @@ object SmithyFormat {
   }
 
   /** Format each file in place. Returns the files that were rewritten. */
-  def formatAll(roots: Seq[Path]): Seq[Path] =
-    smithyFiles(roots).flatMap { file =>
-      val original = readUtf8(file)
-      val formatted = format(file.toString, original)
-      if (formatted == original) None
-      else {
-        writeUtf8(file, formatted)
-        Some(file)
-      }
+  def formatAll(roots: Seq[Path]): Seq[Path] = smithyFiles(roots).flatMap { file =>
+    val original = readUtf8(file)
+    val formatted = format(file.toString, original)
+    if (formatted == original)
+      None
+    else {
+      writeUtf8(file, formatted)
+      Some(file)
     }
+  }
 
   /** Returns files that are not properly formatted. */
-  def checkAll(roots: Seq[Path]): Seq[Path] =
-    smithyFiles(roots).filter { file =>
-      val original = readUtf8(file)
-      format(file.toString, original) != original
-    }
+  def checkAll(roots: Seq[Path]): Seq[Path] = smithyFiles(roots).filter { file =>
+    val original = readUtf8(file)
+    format(file.toString, original) != original
+  }
 
-  private def readUtf8(p: Path): String =
-    new String(Files.readAllBytes(p), StandardCharsets.UTF_8)
+  private def readUtf8(p: Path): String = new String(Files.readAllBytes(p), StandardCharsets.UTF_8)
 
   private def writeUtf8(p: Path, content: String): Unit = {
     Files.write(p, content.getBytes(StandardCharsets.UTF_8))
