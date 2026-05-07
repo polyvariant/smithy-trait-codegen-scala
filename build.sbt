@@ -58,11 +58,12 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
     scalas = List(scala212, scala3),
     javas = List(JavaSpec.temurin("17")),
     matrixAdds = Map("test" -> List(scriptedTestPlaceholder)),
-    steps = githubWorkflowJobSetup.value.toList :+
-      WorkflowStep.Sbt(
-        commands = List("scripted ${{ matrix.test }}"),
-        name = Some("Run scripted ${{ matrix.test }}"),
-      ),
+    steps =
+      githubWorkflowJobSetup.value.toList :+
+        WorkflowStep.Sbt(
+          commands = List("scripted ${{ matrix.test }}"),
+          name = Some("Run scripted ${{ matrix.test }}"),
+        ),
   ),
 )
 
@@ -73,16 +74,18 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
 // patch; the other regenerates, applies the patch in memory, and compares.
 // The CI workflow's "up to date" check calls the patched check task so it
 // sees the same form as what's on disk.
-val patchScriptedMatrix: String => String = yaml =>
-  yaml
-    .replace(s"[$scriptedTestPlaceholder]", scriptedTestExpansion)
-    // route the in-workflow staleness check through our patched task so it
-    // compares apples to apples
-    .replace("sbt githubWorkflowCheck", "sbt githubWorkflowCheckWithMatrixPatch")
+val patchScriptedMatrix: String => String =
+  yaml =>
+    yaml
+      .replace(s"[$scriptedTestPlaceholder]", scriptedTestExpansion)
+      // route the in-workflow staleness check through our patched task so it
+      // compares apples to apples
+      .replace("sbt githubWorkflowCheck", "sbt githubWorkflowCheckWithMatrixPatch")
 
 val githubWorkflowGenerateWithMatrixPatch = taskKey[Unit](
   "Generate ci.yml via sbt-typelevel, then patch the scripted matrix axis"
 )
+
 val githubWorkflowCheckWithMatrixPatch = taskKey[Unit](
   "Check ci.yml is up to date, accounting for the scripted matrix patch"
 )
@@ -101,8 +104,7 @@ val snapshotCiYml = taskKey[File](
 )
 
 ThisBuild / snapshotCiYml := {
-  val ciYml =
-    (LocalRootProject / baseDirectory).value / ".github" / "workflows" / "ci.yml"
+  val ciYml = (LocalRootProject / baseDirectory).value / ".github" / "workflows" / "ci.yml"
   val snap = ciYml.getParentFile / s"${ciYml.getName}.snapshot"
   IO.copyFile(ciYml, snap)
   snap
@@ -110,11 +112,10 @@ ThisBuild / snapshotCiYml := {
 
 ThisBuild / githubWorkflowCheckWithMatrixPatch := Def
   .sequential(
-    (ThisBuild / snapshotCiYml),
-    (LocalRootProject / githubWorkflowGenerate),
+    ThisBuild / snapshotCiYml,
+    LocalRootProject / githubWorkflowGenerate,
     Def.task {
-      val ciYml =
-        (LocalRootProject / baseDirectory).value / ".github" / "workflows" / "ci.yml"
+      val ciYml = (LocalRootProject / baseDirectory).value / ".github" / "workflows" / "ci.yml"
       val snap = ciYml.getParentFile / s"${ciYml.getName}.snapshot"
       val onDisk = IO.read(snap)
       val regeneratedAndPatched = patchScriptedMatrix(IO.read(ciYml))
