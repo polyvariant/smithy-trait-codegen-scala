@@ -1,16 +1,39 @@
-# smithy-trait-codegen-scala
+# smithy-scala-tools
 
-Generate Java classes (with builders, serialization to/from `Node`, trait providers) for Smithy traits, for usage in Scala projects.
+Build-time tooling for working with [Smithy](https://smithy.io) models from Scala projects.
 
-## Usage
+<!-- omit in toc -->
+## Table of contents
 
-### sbt
+- [smithy-scala-tools](#smithy-scala-tools)
+  - [Installation](#installation)
+  - [`SmithyTraitCodegenPlugin`](#smithytraitcodegenplugin)
+    - [Usage](#usage)
+    - [mill](#mill)
+    - [Useful patterns](#useful-patterns)
+      - [Mixing generated and handwritten providers](#mixing-generated-and-handwritten-providers)
+  - [`SmithyFormatPlugin`](#smithyformatplugin)
+    - [Tasks](#tasks)
+    - [Configuration](#configuration)
+    - [Wiring `smithyFmtCheckAll` into CI](#wiring-smithyfmtcheckall-into-ci)
+  - [FAQ](#faq)
+    - [What's the difference between this and smithy4s?](#whats-the-difference-between-this-and-smithy4s)
+
+## Installation
 
 In `project/plugins.sbt`:
 
 ```scala
-addSbtPlugin("org.polyvariant" % "smithy-trait-codegen-sbt" % version)
+addSbtPlugin("org.polyvariant" % "smithy-scala-tools-sbt" % version)
 ```
+
+Both plugins live in this artifact — there is nothing else to add.
+
+## `SmithyTraitCodegenPlugin`
+
+Generates Java sources and resources from Smithy trait definitions. Not auto-enabled — opt in on the modules that need it.
+
+### Usage
 
 In `build.sbt`:
 
@@ -31,9 +54,9 @@ In `build.sbt`:
 
 Currently not supported in this plugin. See https://github.com/simple-scala-tooling/smithy-trait-codegen-mill/ for an alternative.
 
-## Useful patterns
+### Useful patterns
 
-### Mixing generated and handwritten providers
+#### Mixing generated and handwritten providers
 
 In case you want to keep some handwritten trait providers, e.g. if you have union traits (which are currently not supported in smithy-trait-codegen), or want to keep binary compatibility on existing traits.
 
@@ -59,3 +82,71 @@ You can also hardcode `smithyTraitCodegenExternalProviders` right there:
 ```scala
 smithyTraitCodegenExternalProviders ++= List("my.pkg.Trait1$Provider", "my.pkg.Trait2$Provider")
 ```
+
+## `SmithyFormatPlugin`
+
+Formats `.smithy` files in place. Auto-enabled on every project. By default it scans `src/main/smithy` and `src/main/resources/META-INF/smithy` (and their `Test` equivalents) for `.smithy` files.
+
+### Tasks
+
+| Task                | Scope                       | Description                                                        |
+| ------------------- | --------------------------- | ------------------------------------------------------------------ |
+| `smithyFmt`         | `Compile` (default), `Test` | Format `.smithy` files in this configuration's source directories. |
+| `smithyFmtCheck`    | `Compile` (default), `Test` | Fail if any `.smithy` file would be reformatted.                   |
+| `smithyFmtAll`      | project                     | Run `smithyFmt` for both `Compile` and `Test`.                     |
+| `smithyFmtCheckAll` | project                     | Run `smithyFmtCheck` for both `Compile` and `Test`.                |
+
+```sh
+sbt smithyFmt           # = Compile/smithyFmt
+sbt Test/smithyFmt
+sbt smithyFmtAll
+
+sbt smithyFmtCheck      # = Compile/smithyFmtCheck
+sbt Test/smithyFmtCheck
+sbt smithyFmtCheckAll
+```
+
+### Configuration
+
+Override the directories that get scanned:
+
+```scala
+Compile / smithyFmtSourceDirectories += baseDirectory.value / "smithy"
+```
+
+### Wiring `smithyFmtCheckAll` into CI
+
+Both `sbt-typelevel` and `sbt-github-actions` (the [`com.github.sbt`](https://github.com/sbt/sbt-github-actions) variant) generate the workflow from `githubWorkflowBuild`. The lint step they emit is named `"Check headers and formatting"` — fold the Smithy check into it so it runs alongside scalafmt/header checks:
+
+```scala
+ThisBuild / githubWorkflowBuild ~= {
+  _.map {
+    case step: WorkflowStep.Sbt if step.name == Some("Check headers and formatting") =>
+      step.withCommands(step.commands :+ "smithyFmtCheckAll")
+    case other => other
+  }
+}
+```
+
+Then regenerate the workflow:
+
+```sh
+sbt githubWorkflowGenerate
+```
+
+> A simpler one-liner is being tracked upstream: [typelevel/sbt-typelevel#888](https://github.com/typelevel/sbt-typelevel/issues/888).
+
+## FAQ
+
+### What's the difference between this and smithy4s?
+
+They operate on a different level — they're not alternatives.
+
+[smithy4s](https://disneystreaming.github.io/smithy4s/) turns Smithy models into Scala runtime code: a codegen + runtime library for building and consuming Smithy-defined services across JVM, JS, and Native. Its audience is application developers.
+
+`smithy-scala-tools` is a collection of build-time utilities, each aimed at a different audience:
+
+- **`SmithyTraitCodegenPlugin`** is for **protocol authors** — people defining custom Smithy traits and shipping them as artifacts that downstream consumers (including smithy4s users) load via Smithy's model assembler. It generates the Java glue that makes that work.
+- **`SmithyFormatPlugin`** sits **side-by-side with smithy4s**: anyone writing `.smithy` files can use it to keep them formatted, regardless of what (if anything) consumes those models afterwards.
+
+A project can (and often will) use both this and smithy4s.

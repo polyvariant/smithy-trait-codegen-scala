@@ -55,7 +55,7 @@ jobs:
         run: sbt +update
 
       - name: Check that workflows are up to date
-        run: sbt githubWorkflowCheck
+        run: sbt githubWorkflowCheckWithMatrixPatch
 
       - name: Check headers and formatting
         if: matrix.java == 'temurin@17' && matrix.os == 'ubuntu-22.04'
@@ -63,9 +63,6 @@ jobs:
 
       - name: Test
         run: sbt '++ ${{ matrix.scala }}' test
-
-      - id: scripted-test
-        run: sbt '++ ${{ matrix.scala }}' scripted
 
       - name: Check binary compatibility
         if: matrix.java == 'temurin@17' && matrix.os == 'ubuntu-22.04'
@@ -77,11 +74,11 @@ jobs:
 
       - name: Make target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        run: mkdir -p sbtPlugin/target project/target
+        run: mkdir -p core/target sbtPlugin/target project/target
 
       - name: Compress target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        run: tar cf targets.tar sbtPlugin/target project/target
+        run: tar cf targets.tar core/target sbtPlugin/target project/target
 
       - name: Upload target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
@@ -200,3 +197,60 @@ jobs:
         with:
           modules-ignore: root_2.12 root_3
           configs-ignore: test scala-tool scala-doc-tool test-internal
+
+  scripted-discover:
+    name: Scripted (discover tests)
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        java: [temurin@17]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      tests: ${{ steps.list.outputs.tests }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: List scripted test folders
+        id: list
+        run: |
+          tests=$(find sbtPlugin/src/sbt-test -mindepth 2 -maxdepth 2 -type d | sed 's|sbtPlugin/src/sbt-test/||' | jq -R . | jq -sc .)
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          echo "Discovered: $tests"
+
+  scripted:
+    name: Scripted
+    needs: [scripted-discover]
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        scala: [2.12.21, 3.8.3]
+        java: [temurin@17]
+        test: ${{ fromJSON(needs.scripted-discover.outputs.tests) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Java (temurin@17)
+        id: setup-java-temurin-17
+        if: matrix.java == 'temurin@17'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+
+      - name: sbt update
+        if: matrix.java == 'temurin@17' && steps.setup-java-temurin-17.outputs.cache-hit == 'false'
+        run: sbt +update
+
+      - name: Run scripted ${{ matrix.test }}
+        run: sbt '++ ${{ matrix.scala }}' 'scripted ${{ matrix.test }}'
