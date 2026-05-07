@@ -145,6 +145,17 @@ ThisBuild / githubWorkflowCheckWithMatrixPatch := Def
   )
   .value
 
+// Reroute the `prePR` and `tlPrePrBotHook` aliases (defined by sbt-typelevel)
+// to use our patched generate task, so contributors running `sbt prePR` get
+// the same ci.yml form that `githubWorkflowCheckWithMatrixPatch` validates.
+GlobalScope / tlCommandAliases := (GlobalScope / tlCommandAliases).value.map {
+  case (alias, commands) =>
+    alias -> commands.map {
+      case "githubWorkflowGenerate" => "githubWorkflowGenerateWithMatrixPatch"
+      case other                    => other
+    }
+}
+
 lazy val core = project
   .settings(
     name := "smithy-scala-tools-core",
