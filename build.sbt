@@ -145,9 +145,9 @@ ThisBuild / githubWorkflowCheckWithMatrixPatch := Def
   )
   .value
 
-lazy val sbtPlugin = project
+lazy val core = project
   .settings(
-    name := "smithy-trait-codegen-sbt",
+    name := "smithy-scala-tools-core",
     libraryDependencies ++= Seq(
       "software.amazon.smithy" % "smithy-trait-codegen" % "1.70.0",
       "software.amazon.smithy" % "smithy-model" % "1.70.0",
@@ -155,7 +155,16 @@ lazy val sbtPlugin = project
       "com.lihaoyi" %% "os-lib" % "0.11.8",
       "org.scalameta" %% "munit" % "1.3.0" % Test,
     ),
-    testFrameworks += new TestFramework("munit.Framework"),
+    mimaPreviousArtifacts := Set.empty,
+  )
+
+lazy val sbtPlugin = project
+  .dependsOn(core)
+  .settings(
+    name := "smithy-scala-tools-sbt",
+    libraryDependencies ++= Seq(
+      "org.scalameta" %% "munit" % "1.3.0" % Test
+    ),
     pluginCrossBuild / sbtVersion := {
       scalaBinaryVersion.value match {
         case "2.12" => "1.9.8"
@@ -172,5 +181,5 @@ lazy val sbtPlugin = project
 
 lazy val root = project
   .in(file("."))
-  .aggregate(sbtPlugin)
+  .aggregate(core, sbtPlugin)
   .enablePlugins(NoPublishPlugin)

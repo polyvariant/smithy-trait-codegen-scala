@@ -16,7 +16,6 @@
 
 package org.polyvariant.smithytraitcodegen
 
-import sbt.*
 import software.amazon.smithy.build.FileManifest
 import software.amazon.smithy.build.PluginContext
 import software.amazon.smithy.model.Model
@@ -24,94 +23,18 @@ import software.amazon.smithy.model.node.ArrayNode
 import software.amazon.smithy.model.node.ObjectNode
 import software.amazon.smithy.traitcodegen.TraitCodegenPlugin
 
-import java.io.File
-
 object SmithyTraitCodegen {
-
-  import sjsonnew.*
-
-  import BasicJsonProtocol.*
 
   case class Args(
     javaPackage: String,
     smithyNamespace: String,
     targetDir: os.Path,
-    smithySourcesDir: PathRef,
-    dependencies: List[PathRef],
+    smithySourcesDir: os.Path,
+    dependencies: List[os.Path],
     externalProviders: List[String],
   )
 
-  object Args {
-
-    private implicit val pathFormat: JsonFormat[os.Path] = BasicJsonProtocol
-      .projectFormat[os.Path, File](p => p.toIO, file => os.Path(file))
-
-    implicit val argsFmt: JsonFormat[Args] =
-      caseClass(
-        (
-          javaPackage: String,
-          smithyNamespace: String,
-          targetDir: os.Path,
-          smithySourcesDir: PathRef,
-          dependencies: List[PathRef],
-          externalProviders: List[String],
-        ) =>
-          Args(
-            javaPackage,
-            smithyNamespace,
-            targetDir,
-            smithySourcesDir,
-            dependencies,
-            externalProviders,
-          ),
-        (a: Args) =>
-          Some(
-            (
-              a.javaPackage,
-              a.smithyNamespace,
-              a.targetDir,
-              a.smithySourcesDir,
-              a.dependencies,
-              a.externalProviders,
-            )
-          ),
-      )(
-        "javaPackage",
-        "smithyNamespace",
-        "targetDir",
-        "smithySourcesDir",
-        "dependencies",
-        "externalProviders",
-      )
-
-  }
-
-  case class Output(metaDir: File, javaDir: File)
-
-  object Output {
-
-    // format: off
-    private type OutputDeconstructed = File :*: File :*: LNil
-    // format: on
-
-    implicit val outputIso: IsoLList.Aux[Output, OutputDeconstructed] = LList
-      .iso[Output, OutputDeconstructed](
-        (output: Output) =>
-          ("metaDir", output.metaDir) :*:
-            ("javaDir", output.javaDir) :*:
-            LNil,
-        {
-          case (_, metaDir) :*:
-              (_, javaDir) :*:
-              LNil =>
-            Output(
-              metaDir = metaDir,
-              javaDir = javaDir,
-            )
-        },
-      )
-
-  }
+  case class Output(metaDir: os.Path, javaDir: os.Path)
 
   def generate(args: Args): Output = {
     val outputDir = args.targetDir / "smithy-trait-generator-output"
@@ -124,8 +47,8 @@ object SmithyTraitCodegen {
 
     val model = args
       .dependencies
-      .foldLeft(Model.assembler().addImport(args.smithySourcesDir.path.toNIO)) { case (acc, dep) =>
-        acc.addImport(dep.path.toNIO)
+      .foldLeft(Model.assembler().addImport(args.smithySourcesDir.toNIO)) { case (acc, dep) =>
+        acc.addImport(dep.toNIO)
       }
       .assemble()
       .unwrap()
@@ -156,12 +79,12 @@ object SmithyTraitCodegen {
       .walk(metaDir, includeTarget = true)
       .filter(os.isFile)
       .foreach { p =>
-        if (p.toIO.name == "software.amazon.smithy.model.traits.TraitService") {
+        if (p.last == "software.amazon.smithy.model.traits.TraitService") {
           args.externalProviders.foreach(provider => os.write.append(p, provider + "\n"))
         }
       }
 
-    Output(metaDir = metaDir.toIO, javaDir = genDir.toIO)
+    Output(metaDir = metaDir, javaDir = genDir)
   }
 
 }

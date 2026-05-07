@@ -19,6 +19,8 @@ package org.polyvariant.smithytraitcodegen
 import sbt.*
 import sbt.plugins.JvmPlugin
 
+import java.io.File
+
 import Keys.*
 
 object SmithyTraitCodegenPlugin extends AutoPlugin {
@@ -55,16 +57,118 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
 
   import autoImport.*
 
+  // Sbt-cache key: like SmithyTraitCodegen.Args, but path fields use PathRef so that
+  // file content participates in the cache hash. The runtime call into the core
+  // codegen converts this back to a plain SmithyTraitCodegen.Args.
+  private case class CacheArgs(
+    javaPackage: String,
+    smithyNamespace: String,
+    targetDir: os.Path,
+    smithySourcesDir: PathRef,
+    dependencies: List[PathRef],
+    externalProviders: List[String],
+  )
+
+  private object CacheArgs {
+
+    import sjsonnew.*
+
+    import BasicJsonProtocol.*
+
+    private implicit val pathFormat: JsonFormat[os.Path] = BasicJsonProtocol
+      .projectFormat[os.Path, File](p => p.toIO, file => os.Path(file))
+
+    implicit val argsFmt: JsonFormat[CacheArgs] =
+      caseClass(
+        (
+          javaPackage: String,
+          smithyNamespace: String,
+          targetDir: os.Path,
+          smithySourcesDir: PathRef,
+          dependencies: List[PathRef],
+          externalProviders: List[String],
+        ) =>
+          CacheArgs(
+            javaPackage,
+            smithyNamespace,
+            targetDir,
+            smithySourcesDir,
+            dependencies,
+            externalProviders,
+          ),
+        (a: CacheArgs) =>
+          Some(
+            (
+              a.javaPackage,
+              a.smithyNamespace,
+              a.targetDir,
+              a.smithySourcesDir,
+              a.dependencies,
+              a.externalProviders,
+            )
+          ),
+      )(
+        "javaPackage",
+        "smithyNamespace",
+        "targetDir",
+        "smithySourcesDir",
+        "dependencies",
+        "externalProviders",
+      )
+
+  }
+
+  // sbt-shaped Output (File-based) so it can flow through sourceGenerators / resourceGenerators
+  // and be persisted by the sbt cache.
+  case class Output(metaDir: File, javaDir: File)
+
+  object Output {
+
+    import sjsonnew.*
+
+    // format: off
+    private type OutputDeconstructed = File :*: File :*: LNil
+    // format: on
+
+    implicit val outputIso: IsoLList.Aux[Output, OutputDeconstructed] = LList
+      .iso[Output, OutputDeconstructed](
+        (output: Output) =>
+          ("metaDir", output.metaDir) :*:
+            ("javaDir", output.javaDir) :*:
+            LNil,
+        {
+          case (_, metaDir) :*:
+              (_, javaDir) :*:
+              LNil =>
+            Output(
+              metaDir = metaDir,
+              javaDir = javaDir,
+            )
+        },
+      )
+
+  }
+
+  private def runCodegen(cache: CacheArgs): Output = {
+    val core = SmithyTraitCodegen.Args(
+      javaPackage = cache.javaPackage,
+      smithyNamespace = cache.smithyNamespace,
+      targetDir = cache.targetDir,
+      smithySourcesDir = cache.smithySourcesDir.path,
+      dependencies = cache.dependencies.map(_.path),
+      externalProviders = cache.externalProviders,
+    )
+    val out = SmithyTraitCodegen.generate(core)
+    Output(metaDir = out.metaDir.toIO, javaDir = out.javaDir.toIO)
+  }
+
   override def projectSettings: Seq[Setting[?]] = Seq(
     smithyTraitCodegenSourceDirectory := (Compile / resourceDirectory).value / "META-INF" / "smithy",
     smithyTraitCodegenTargetDirectory := (Compile / target).value,
     smithyTraitCodegenExternalProviders := Nil,
     Keys.generateSmithyTraits := Def.task {
       import sbt.util.CacheImplicits.*
-      implicit val codegenCache: sbt.util.Cache[
-        SmithyTraitCodegen.Args,
-        SmithyTraitCodegen.Output,
-      ] = new sbt.util.BasicCache()
+      implicit val codegenCache: sbt.util.Cache[CacheArgs, Output] = new sbt.util.BasicCache()
       val s = (Compile / streams).value
 
       val report = update.value
@@ -79,7 +183,7 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
         "Not all dependencies required for smithy-trait-codegen have been found",
       )
 
-      val args = SmithyTraitCodegen.Args(
+      val cacheArgs = CacheArgs(
         javaPackage = smithyTraitCodegenJavaPackage.value,
         smithyNamespace = smithyTraitCodegenNamespace.value,
         targetDir = os.Path(smithyTraitCodegenTargetDirectory.value),
@@ -90,10 +194,10 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
 
       val cachedCodegen =
         Cache.cached(s.cacheStoreFactory.make("smithy-trait-codegen")) {
-          SmithyTraitCodegen.generate
+          runCodegen
         }
 
-      cachedCodegen(args)
+      cachedCodegen(cacheArgs)
     }.value,
     Compile / sourceGenerators += Def.task {
       val codegenOutput = (Compile / Keys.generateSmithyTraits).value
@@ -116,7 +220,7 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
 
   object Keys {
 
-    val generateSmithyTraits = taskKey[SmithyTraitCodegen.Output](
+    val generateSmithyTraits = taskKey[Output](
       "Run AWS smithy-trait-codegen on the protocol specs"
     )
 
