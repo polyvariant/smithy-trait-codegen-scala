@@ -55,7 +55,7 @@ jobs:
         run: sbt +update
 
       - name: Check that workflows are up to date
-        run: sbt githubWorkflowCheck
+        run: sbt githubWorkflowCheckWithMatrixPatch
 
       - name: Check headers and formatting
         if: matrix.java == 'temurin@17' && matrix.os == 'ubuntu-22.04'
@@ -198,14 +198,37 @@ jobs:
           modules-ignore: root_2.12 root_3
           configs-ignore: test scala-tool scala-doc-tool test-internal
 
+  scripted-discover:
+    name: Scripted (discover tests)
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        java: [temurin@17]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      tests: ${{ steps.list.outputs.tests }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: List scripted test folders
+        id: list
+        run: |
+          tests=$(find sbtPlugin/src/sbt-test -mindepth 2 -maxdepth 2 -type d | sed 's|sbtPlugin/src/sbt-test/||' | jq -R . | jq -sc .)
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          echo "Discovered: $tests"
+
   scripted:
     name: Scripted
+    needs: [scripted-discover]
     strategy:
       matrix:
         os: [ubuntu-22.04]
         scala: [2.12.21, 3.8.3]
         java: [temurin@17]
-        test: [fmt/format-rewrite, fmt/format-check, fmt/format-src-smithy, codegen/sample-traits, codegen/namespace-restriction]
+        test: ${{ fromJSON(needs.scripted-discover.outputs.tests) }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)
