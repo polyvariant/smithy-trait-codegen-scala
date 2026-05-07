@@ -86,7 +86,7 @@ object SmithyDocGenPlugin extends AutoPlugin {
     private implicit val formatFmt: JsonFormat[Format] = BasicJsonProtocol
       .projectFormat[Format, String](
         {
-          case SmithyDocGen.Format.Markdown => "markdown"
+          case SmithyDocGen.Format.Markdown          => "markdown"
           case s: SmithyDocGen.Format.SphinxMarkdown =>
             "sphinx-markdown" +
               s";sphinxFormat=${s.sphinxFormat.getOrElse("")}" +

@@ -48,9 +48,9 @@ object SmithyDocGen {
       * @param extraExtensions
       *   extra Sphinx extensions to enable in `conf.py`.
       * @param autoBuild
-      *   whether to automatically render the docs to the output format. Defaults to `false` in
-      *   this plugin (upstream default is `true`). When enabled, requires Python 3 on `PATH`
-      *   and network access.
+      *   whether to automatically render the docs to the output format. Defaults to `false` in this
+      *   plugin (upstream default is `true`). When enabled, requires Python 3 on `PATH` and network
+      *   access.
       */
     case class SphinxMarkdown(
       sphinxFormat: Option[String] = None,
@@ -111,7 +111,7 @@ object SmithyDocGen {
       .withMember("format", args.format.name)
 
     args.format match {
-      case Format.Markdown => base.build()
+      case Format.Markdown          => base.build()
       case s: Format.SphinxMarkdown =>
         val sphinx = sphinxNode(s)
         if (sphinx.isEmpty)
