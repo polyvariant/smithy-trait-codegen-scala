@@ -25,9 +25,6 @@ import software.amazon.smithy.model.node.ObjectNode
 import software.amazon.smithy.traitcodegen.TraitCodegenPlugin
 
 import java.io.File
-import software.amazon.smithy.model.transform.ModelTransformer
-import java.util.stream.Collectors
-import scala.collection.JavaConverters.*
 
 object SmithyTraitCodegen {
 
@@ -50,7 +47,35 @@ object SmithyTraitCodegen {
       .projectFormat[os.Path, File](p => p.toIO, file => os.Path(file))
 
     implicit val argsFmt: JsonFormat[Args] =
-      caseClass(Args.apply _, Args.unapply _)(
+      caseClass(
+        (
+          javaPackage: String,
+          smithyNamespace: String,
+          targetDir: os.Path,
+          smithySourcesDir: PathRef,
+          dependencies: List[PathRef],
+          externalProviders: List[String],
+        ) =>
+          Args(
+            javaPackage,
+            smithyNamespace,
+            targetDir,
+            smithySourcesDir,
+            dependencies,
+            externalProviders,
+          ),
+        (a: Args) =>
+          Some(
+            (
+              a.javaPackage,
+              a.smithyNamespace,
+              a.targetDir,
+              a.smithySourcesDir,
+              a.dependencies,
+              a.externalProviders,
+            )
+          ),
+      )(
         "javaPackage",
         "smithyNamespace",
         "targetDir",
@@ -65,26 +90,26 @@ object SmithyTraitCodegen {
 
   object Output {
 
-      // format: off
-      private type OutputDeconstructed = File :*: File :*: LNil
-      // format: on
+    // format: off
+    private type OutputDeconstructed = File :*: File :*: LNil
+    // format: on
 
-    implicit val outputIso = LList.iso[Output, OutputDeconstructed](
-      {
-        output: Output => ("metaDir", output.metaDir) :*:
-          ("javaDir", output.javaDir) :*:
-          LNil
-      },
-      {
-        case (_, metaDir) :*:
-            (_, javaDir) :*:
-            LNil =>
-          Output(
-            metaDir = metaDir,
-            javaDir = javaDir,
-          )
-      },
-    )
+    implicit val outputIso: IsoLList.Aux[Output, OutputDeconstructed] = LList
+      .iso[Output, OutputDeconstructed](
+        (output: Output) =>
+          ("metaDir", output.metaDir) :*:
+            ("javaDir", output.javaDir) :*:
+            LNil,
+        {
+          case (_, metaDir) :*:
+              (_, javaDir) :*:
+              LNil =>
+            Output(
+              metaDir = metaDir,
+              javaDir = javaDir,
+            )
+        },
+      )
 
   }
 

@@ -61,6 +61,10 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
     smithyTraitCodegenExternalProviders := Nil,
     Keys.generateSmithyTraits := Def.task {
       import sbt.util.CacheImplicits.*
+      implicit val codegenCache: sbt.util.Cache[
+        SmithyTraitCodegen.Args,
+        SmithyTraitCodegen.Output,
+      ] = new sbt.util.BasicCache()
       val s = (Compile / streams).value
 
       val report = update.value
@@ -102,12 +106,12 @@ object SmithyTraitCodegenPlugin extends AutoPlugin {
     libraryDependencies ++= smithyTraitCodegenDependencies.value,
   )
 
-  private def cleanCopy(source: File, target: File) = {
+  private def cleanCopy(source: File, target: File): Seq[File] = {
     val sourcePath = os.Path(source)
     val targetPath = os.Path(target)
     os.remove.all(targetPath)
     os.copy(from = sourcePath, to = targetPath, createFolders = true)
-    os.walk(targetPath).map(_.toIO).filter(_.isFile())
+    os.walk(targetPath).map(_.toIO).filter(_.isFile()).toSeq
   }
 
   object Keys {
