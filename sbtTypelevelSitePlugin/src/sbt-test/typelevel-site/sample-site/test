@@ -1,0 +1,9 @@
+# Build the typelevel site, which runs mdoc + laika and depends on
+# generateSmithyDocs (so our smithy docs end up mounted at /smithy/).
+> tlSite
+
+# The mdoc-generated root page should be at the site root.
+$ exists target/docs/site/index.html
+
+# The smithy-generated content should be mounted under /smithy/.
+$ exists target/docs/site/smithy/index.html

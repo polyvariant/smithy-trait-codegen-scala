@@ -191,7 +191,25 @@ lazy val sbtPlugin = project
   )
   .enablePlugins(SbtPlugin)
 
+// sbt-typelevel-site is currently sbt 1.x only; sbt 2 work is tracked at
+// https://github.com/typelevel/sbt-typelevel/pull/872
+lazy val sbtTypelevelSitePlugin = project
+  .in(file("sbtTypelevelSitePlugin"))
+  .dependsOn(sbtPlugin)
+  .settings(
+    name := "smithy-scala-tools-sbt-typelevel-site",
+    crossScalaVersions := Seq(scala212),
+    pluginCrossBuild / sbtVersion := "1.9.8",
+    addSbtPlugin("org.typelevel" % "sbt-typelevel-site" % "0.8.5"),
+    scriptedLaunchOpts :=
+      scriptedLaunchOpts.value ++
+        Seq("-Xmx1024M", "-Dplugin.version=" + version.value),
+    scriptedBufferLog := false,
+    mimaPreviousArtifacts := Set.empty,
+  )
+  .enablePlugins(SbtPlugin)
+
 lazy val root = project
   .in(file("."))
-  .aggregate(core, sbtPlugin)
+  .aggregate(core, sbtPlugin, sbtTypelevelSitePlugin)
   .enablePlugins(NoPublishPlugin)

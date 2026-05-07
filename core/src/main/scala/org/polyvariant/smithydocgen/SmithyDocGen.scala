@@ -65,9 +65,8 @@ object SmithyDocGen {
   }
 
   case class Args(
-    service: String,
-    format: Format,
-    targetDir: os.Path,
+    settings: ObjectNode,
+    outputDir: os.Path,
     smithySourcesDir: os.Path,
     dependencies: List[os.Path],
   )
@@ -75,7 +74,7 @@ object SmithyDocGen {
   case class Output(outputDir: os.Path)
 
   def generate(args: Args): Output = {
-    val outputDir = args.targetDir / "smithy-docgen-output"
+    val outputDir = args.outputDir
     os.remove.all(outputDir)
     os.makeDir.all(outputDir)
 
@@ -95,7 +94,7 @@ object SmithyDocGen {
       .model(model)
       .fileManifest(manifest)
       .sharedFileManifest(sharedManifest)
-      .settings(buildSettings(args))
+      .settings(args.settings)
       .build()
     val plugin = new SmithyDocPlugin()
     plugin.execute(context)
@@ -103,14 +102,19 @@ object SmithyDocGen {
     Output(outputDir = outputDir)
   }
 
-  // See DocSettings for available top-level fields
-  private def buildSettings(args: Args): ObjectNode = {
+  /** Build the settings ObjectNode from a typed `service` and `Format`.
+    * Callers that want to tweak fields the typed API doesn't expose can take
+    * the result and merge in their own members.
+    *
+    * See `software.amazon.smithy.docgen.DocSettings` for available top-level fields.
+    */
+  def buildSettings(service: String, format: Format): ObjectNode = {
     val base = ObjectNode
       .builder()
-      .withMember("service", args.service)
-      .withMember("format", args.format.name)
+      .withMember("service", service)
+      .withMember("format", format.name)
 
-    args.format match {
+    format match {
       case Format.Markdown          => base.build()
       case s: Format.SphinxMarkdown =>
         val sphinx = sphinxNode(s)
