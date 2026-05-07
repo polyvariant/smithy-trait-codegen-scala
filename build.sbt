@@ -10,8 +10,14 @@ ThisBuild / githubWorkflowPublishTargetBranches := Seq(
   RefPredicate.StartsWith(Ref.Tag("v")),
 )
 
-ThisBuild / scalaVersion := "2.12.21"
-ThisBuild / tlJdkRelease := Some(8)
+ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
+
+val scala212 = "2.12.21"
+val scala3 = "3.8.3"
+
+ThisBuild / scalaVersion := scala212
+ThisBuild / crossScalaVersions := Seq(scala212, scala3)
+ThisBuild / tlJdkRelease := None
 ThisBuild / tlFatalWarnings := false
 
 ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
@@ -36,7 +42,6 @@ lazy val sbtPlugin = project
   .settings(
     name := "smithy-trait-codegen-sbt",
     commonSettings,
-    scalaVersion := "2.12.21",
     libraryDependencies ++= Seq(
       "software.amazon.smithy" % "smithy-trait-codegen" % "1.70.0",
       "software.amazon.smithy" % "smithy-model" % "1.70.0",
@@ -46,6 +51,7 @@ lazy val sbtPlugin = project
     pluginCrossBuild / sbtVersion := {
       scalaBinaryVersion.value match {
         case "2.12" => "1.9.8"
+        case _      => "2.0.0-RC12"
       }
     },
     scriptedLaunchOpts :=
