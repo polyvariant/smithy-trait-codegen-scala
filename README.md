@@ -16,6 +16,9 @@ Build-time tooling for working with [Smithy](https://smithy.io) models from Scal
     - [Tasks](#tasks)
     - [Configuration](#configuration)
     - [Wiring `smithyFmtCheckAll` into CI](#wiring-smithyfmtcheckall-into-ci)
+  - [`SmithyDocGenPlugin`](#smithydocgenplugin)
+    - [Usage](#usage-1)
+    - [Settings](#settings)
   - [FAQ](#faq)
     - [What's the difference between this and smithy4s?](#whats-the-difference-between-this-and-smithy4s)
 
@@ -27,7 +30,7 @@ In `project/plugins.sbt`:
 addSbtPlugin("org.polyvariant" % "smithy-scala-tools-sbt" % version)
 ```
 
-Both plugins live in this artifact — there is nothing else to add.
+All plugins live in this artifact — there is nothing else to add.
 
 ## `SmithyTraitCodegenPlugin`
 
@@ -136,6 +139,43 @@ sbt githubWorkflowGenerate
 
 > A simpler one-liner is being tracked upstream: [typelevel/sbt-typelevel#888](https://github.com/typelevel/sbt-typelevel/issues/888).
 
+## `SmithyDocGenPlugin`
+
+Generates API documentation from Smithy models using AWS's [smithy-docgen](https://github.com/smithy-lang/smithy/tree/main/smithy-docgen) plugin. Not auto-enabled — opt in on the modules that need it.
+
+### Usage
+
+In `build.sbt`:
+
+```scala
+.enablePlugins(SmithyDocGenPlugin)
+.settings(
+  smithyDocGenService := "com.example#MyService",
+  // optional, defaults to Format.Markdown
+  smithyDocGenFormat := SmithyDocGenPlugin.Format.Markdown,
+  // optional, defaults to Nil
+  smithyDocGenDependencies := Nil,
+)
+```
+
+For Sphinx-based output, use `Format.SphinxMarkdown(...)`. By default, `autoBuild = false` — `smithy-docgen` will only emit the Sphinx project files (`conf.py`, `requirements.txt`, `Makefile`, `content/`). Set `autoBuild = true` if you want `smithy-docgen` to invoke Sphinx and render the docs, but note this requires Python 3 on `PATH` and network access (the integration creates a venv and pip-installs Sphinx).
+
+By default, the plugin reads `.smithy` files from `src/main/resources/META-INF/smithy` and writes the generated documentation to `target/smithy-docgen-output/`. The `generateSmithyDocs` task runs the generation and returns the output directory.
+
+```sh
+sbt generateSmithyDocs
+```
+
+### Settings
+
+| Setting                       | Type             | Description                                                                            |
+| ----------------------------- | ---------------- | -------------------------------------------------------------------------------------- |
+| `smithyDocGenService`         | `String`         | Required. Shape ID of the service to document, e.g. `"com.example#MyService"`.         |
+| `smithyDocGenFormat`          | `Format`         | Output format ADT. `Format.Markdown` (default) or `Format.SphinxMarkdown(...)`.        |
+| `smithyDocGenDependencies`    | `List[ModuleID]` | Extra Smithy model jars to include in the assembler.                                   |
+| `smithyDocGenSourceDirectory` | `File`           | Where to look for `.smithy` files. Defaults to `Compile / resourceDirectory / META-INF / smithy`. |
+| `smithyDocGenTargetDirectory` | `File`           | Where to write generated docs. Defaults to `Compile / target`.                         |
+
 ## FAQ
 
 ### What's the difference between this and smithy4s?
@@ -148,5 +188,6 @@ They operate on a different level — they're not alternatives.
 
 - **`SmithyTraitCodegenPlugin`** is for **protocol authors** — people defining custom Smithy traits and shipping them as artifacts that downstream consumers (including smithy4s users) load via Smithy's model assembler. It generates the Java glue that makes that work.
 - **`SmithyFormatPlugin`** sits **side-by-side with smithy4s**: anyone writing `.smithy` files can use it to keep them formatted, regardless of what (if anything) consumes those models afterwards.
+- **`SmithyDocGenPlugin`** is for **anyone publishing a Smithy-modelled API** who wants browsable documentation for it — it runs AWS's `smithy-docgen` to turn the model into markdown.
 
 A project can (and often will) use both this and smithy4s.

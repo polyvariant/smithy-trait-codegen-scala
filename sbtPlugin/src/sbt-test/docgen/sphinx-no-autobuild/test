@@ -1,0 +1,7 @@
+> generateSmithyDocs
+$ exists target/smithy-docgen-output/requirements.txt
+$ exists target/smithy-docgen-output/Makefile
+$ exists target/smithy-docgen-output/make.bat
+$ exists target/smithy-docgen-output/content/conf.py
+$ exists target/smithy-docgen-output/content/index.md
+$ absent target/smithy-docgen-output/venv

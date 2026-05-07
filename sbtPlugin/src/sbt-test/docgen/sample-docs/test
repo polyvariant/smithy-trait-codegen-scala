@@ -1,0 +1,2 @@
+> generateSmithyDocs
+$ exists target/smithy-docgen-output/content/index.md
