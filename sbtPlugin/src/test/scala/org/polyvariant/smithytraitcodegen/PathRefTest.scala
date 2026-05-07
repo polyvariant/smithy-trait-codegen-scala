@@ -29,8 +29,7 @@ class PathRefTest extends FunSuite {
 
   // The PathRef JsonFormat serializes via HashFileInfo, which embeds the content hash
   // — so the rendered JSON changes iff the hash changes.
-  private def hashJson(p: os.Path): String =
-    CompactPrinter(Converter.toJsonUnsafe(PathRef(p)))
+  private def hashJson(p: os.Path): String = CompactPrinter(Converter.toJsonUnsafe(PathRef(p)))
 
   sandbox.test("hashes a single file by content") { dir =>
     val file = dir / "a.txt"
