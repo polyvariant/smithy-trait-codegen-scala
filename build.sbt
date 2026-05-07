@@ -13,7 +13,7 @@ ThisBuild / githubWorkflowPublishTargetBranches := Seq(
 ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17"))
 
 val scala212 = "2.12.21"
-val scala3 = "3.8.2"
+val scala3 = "3.8.3"
 
 ThisBuild / scalaVersion := scala212
 ThisBuild / crossScalaVersions := Seq(scala212, scala3)
