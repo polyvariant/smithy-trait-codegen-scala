@@ -1,2 +1,4 @@
 > generateSmithyDocs
-$ exists target/smithy-docgen-output/content/index.md
+# Output dir lives under (Compile / target), which differs between sbt 1 and sbt 2.
+# Locate it by name and assert its expected layout.
+$ exec sh -c 'set -eu; out=$(find target -name smithy-docgen-output -type d -print -quit); test -n "$out" || { echo "smithy-docgen-output not found"; exit 1; }; test -e "$out/content/index.md" || { echo "missing: $out/content/index.md"; exit 1; }'

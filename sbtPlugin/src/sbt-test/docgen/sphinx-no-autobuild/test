@@ -1,7 +1,4 @@
 > generateSmithyDocs
-$ exists target/smithy-docgen-output/requirements.txt
-$ exists target/smithy-docgen-output/Makefile
-$ exists target/smithy-docgen-output/make.bat
-$ exists target/smithy-docgen-output/content/conf.py
-$ exists target/smithy-docgen-output/content/index.md
-$ absent target/smithy-docgen-output/venv
+# Output dir lives under (Compile / target), which differs between sbt 1 and sbt 2.
+# Locate it by name and assert its expected layout.
+$ exec sh -c 'set -eu; out=$(find target -name smithy-docgen-output -type d -print -quit); test -n "$out" || { echo "smithy-docgen-output not found"; exit 1; }; for f in requirements.txt Makefile make.bat content/conf.py content/index.md; do test -e "$out/$f" || { echo "missing: $out/$f"; exit 1; }; done; ! test -e "$out/venv" || { echo "unexpected venv at $out/venv"; exit 1; }'
