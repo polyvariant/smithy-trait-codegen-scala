@@ -22,51 +22,33 @@ ThisBuild / tlFatalWarnings := false
 
 ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
 
-// The test axis is populated at CI time by the `scripted-discover` job.
-// sbt-typelevel quotes matrixAdds values, but we need the raw GHA expression
-// `${{ fromJSON(...) }}` to render unquoted so it expands to the matrix array.
-// The placeholder below is rewritten in `githubWorkflowGenerate` below.
-// Tracked upstream: https://github.com/typelevel/sbt-typelevel/issues/887
-val scriptedTestPlaceholder = "PATCH_scripted_tests_from_needs"
-val scriptedTestExpansion = "${{ fromJSON(needs.scripted-discover.outputs.tests) }}"
-
-ThisBuild / githubWorkflowAddedJobs ++= Seq(
-  WorkflowJob(
-    id = "scripted-discover",
-    name = "Scripted (discover tests)",
-    oses = (ThisBuild / githubWorkflowOSes).value.toList.take(1),
-    scalas = List.empty,
-    javas = List((ThisBuild / githubWorkflowJavaVersions).value.head),
-    sbtStepPreamble = List.empty,
-    outputs = Map("tests" -> "steps.list.outputs.tests"),
-    steps = List(
-      WorkflowStep.CheckoutFull,
-      WorkflowStep.Run(
-        commands = List(
-          """tests=$(find sbtPlugin/src/sbt-test -mindepth 2 -maxdepth 2 -type d | sed 's|sbtPlugin/src/sbt-test/||' | jq -R . | jq -sc .)""",
-          """echo "tests=$tests" >> "$GITHUB_OUTPUT"""",
-          """echo "Discovered: $tests"""",
-        ),
-        id = Some("list"),
-        name = Some("List scripted test folders"),
-      ),
-    ),
-  ),
-  WorkflowJob(
-    id = "scripted",
-    name = "Scripted",
-    needs = List("scripted-discover"),
+// Each (jobs, patch) pair below is the full discover+run matrix for one
+// sbt-plugin module's scripted tests. sbt-typelevel-site is sbt 1.x only, so
+// its matrix runs on Scala 2.12 only.
+//
+// The placeholder/patch trick works around an upstream bug where matrixAdds
+// values are always quoted but we need the `${{ fromJSON(...) }}` expression
+// rendered unquoted. Tracked at https://github.com/typelevel/sbt-typelevel/issues/887
+ThisBuild / githubWorkflowAddedJobs ++= {
+  val oses = (ThisBuild / githubWorkflowOSes).value.toList
+  val setup = githubWorkflowJobSetup.value.toList
+  ScriptedMatrix.jobs(
+    moduleId = "sbtPlugin",
+    jobIdPrefix = "scripted",
     scalas = List(scala212, scala3),
     javas = List(JavaSpec.temurin("17")),
-    matrixAdds = Map("test" -> List(scriptedTestPlaceholder)),
-    steps =
-      githubWorkflowJobSetup.value.toList :+
-        WorkflowStep.Sbt(
-          commands = List("scripted ${{ matrix.test }}"),
-          name = Some("Run scripted ${{ matrix.test }}"),
-        ),
-  ),
-)
+    oses = oses,
+    jobSetup = setup,
+  ) ++
+    ScriptedMatrix.jobs(
+      moduleId = "sbtTypelevelSitePlugin",
+      jobIdPrefix = "scripted-site",
+      scalas = List(scala212),
+      javas = List(JavaSpec.temurin("17")),
+      oses = oses,
+      jobSetup = setup,
+    )
+}
 
 // Upstream `githubWorkflowGenerate` renders all matrix values through `wrap`,
 // which quotes the `${{ fromJSON(...) }}` expression we need for the scripted
@@ -77,12 +59,12 @@ ThisBuild / githubWorkflowAddedJobs ++= Seq(
 // sees the same form as what's on disk.
 // Tracked upstream: https://github.com/typelevel/sbt-typelevel/issues/887
 val patchScriptedMatrix: String => String =
-  yaml =>
-    yaml
-      .replace(s"[$scriptedTestPlaceholder]", scriptedTestExpansion)
-      // route the in-workflow staleness check through our patched task so it
-      // compares apples to apples
-      .replace("sbt githubWorkflowCheck", "sbt githubWorkflowCheckWithMatrixPatch")
+  ScriptedMatrix
+    .patchFor("scripted")
+    .andThen(ScriptedMatrix.patchFor("scripted-site"))
+    // route the in-workflow staleness check through our patched task so it
+    // compares apples to apples
+    .andThen(_.replace("sbt githubWorkflowCheck", "sbt githubWorkflowCheckWithMatrixPatch"))
 
 val githubWorkflowGenerateWithMatrixPatch = taskKey[Unit](
   "Generate ci.yml via sbt-typelevel, then patch the scripted matrix axis"
