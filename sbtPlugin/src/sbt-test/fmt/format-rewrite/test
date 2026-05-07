@@ -1,0 +1,10 @@
+# before formatting, smithyFmtCheck should fail
+-> smithyFmtCheckAll
+
+# format both configs and verify the files were rewritten
+> smithyFmtAll
+> smithyFmtCheckAll
+
+# running again should be a no-op
+> smithyFmtAll
+> smithyFmtCheckAll

@@ -1,0 +1,10 @@
+# both roots are misformatted; check should fail
+-> Compile/smithyFmtCheck
+
+# format both, then verify both are clean
+> Compile/smithyFmt
+> Compile/smithyFmtCheck
+
+# the unformatted "field :   String" pattern must no longer appear
+-$ exec grep -q "field :   String" src/main/smithy/main.smithy
+-$ exec grep -q "field :   String" src/main/resources/META-INF/smithy/legacy.smithy

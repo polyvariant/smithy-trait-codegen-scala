@@ -64,9 +64,6 @@ jobs:
       - name: Test
         run: sbt '++ ${{ matrix.scala }}' test
 
-      - id: scripted-test
-        run: sbt '++ ${{ matrix.scala }}' scripted
-
       - name: Check binary compatibility
         if: matrix.java == 'temurin@17' && matrix.os == 'ubuntu-22.04'
         run: sbt '++ ${{ matrix.scala }}' mimaReportBinaryIssues
@@ -200,3 +197,37 @@ jobs:
         with:
           modules-ignore: root_2.12 root_3
           configs-ignore: test scala-tool scala-doc-tool test-internal
+
+  scripted:
+    name: Scripted
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        scala: [2.12.21, 3.8.3]
+        java: [temurin@17]
+        test: [fmt/format-rewrite, fmt/format-check, fmt/format-src-smithy, codegen/sample-traits, codegen/namespace-restriction]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Java (temurin@17)
+        id: setup-java-temurin-17
+        if: matrix.java == 'temurin@17'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+
+      - name: sbt update
+        if: matrix.java == 'temurin@17' && steps.setup-java-temurin-17.outputs.cache-hit == 'false'
+        run: sbt +update
+
+      - name: Run scripted ${{ matrix.test }}
+        run: sbt '++ ${{ matrix.scala }}' 'scripted ${{ matrix.test }}'

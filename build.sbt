@@ -22,32 +22,38 @@ ThisBuild / tlFatalWarnings := false
 
 ThisBuild / mergifyStewardConfig ~= (_.map(_.withMergeMinors(true)))
 
-ThisBuild / githubWorkflowBuild ~= {
-  _.flatMap {
-    case step if step.name == Some("Test") =>
-      step ::
-        WorkflowStep.Sbt(commands = List("scripted"), id = Some("scripted-test")) ::
-        Nil
-    case other => other :: Nil
-  }
-}
+val scriptedTestIds = List(
+  "fmt/format-rewrite",
+  "fmt/format-check",
+  "fmt/format-src-smithy",
+  "codegen/sample-traits",
+  "codegen/namespace-restriction",
+)
 
-val commonSettings = Seq(
-  libraryDependencies ++= Seq(
-    "org.typelevel" %%% "weaver-cats" % "0.12.0" % Test
-  )
+ThisBuild / githubWorkflowAddedJobs += WorkflowJob(
+  id = "scripted",
+  name = "Scripted",
+  scalas = List(scala212, scala3),
+  javas = List(JavaSpec.temurin("17")),
+  matrixAdds = Map("test" -> scriptedTestIds),
+  steps = githubWorkflowJobSetup.value.toList :+
+    WorkflowStep.Sbt(
+      commands = List("scripted ${{ matrix.test }}"),
+      name = Some("Run scripted ${{ matrix.test }}"),
+    ),
 )
 
 lazy val sbtPlugin = project
   .settings(
     name := "smithy-trait-codegen-sbt",
-    commonSettings,
     libraryDependencies ++= Seq(
       "software.amazon.smithy" % "smithy-trait-codegen" % "1.70.0",
       "software.amazon.smithy" % "smithy-model" % "1.70.0",
-    ) ++ Seq(
-      "com.lihaoyi" %% "os-lib" % "0.11.8"
+      "software.amazon.smithy" % "smithy-syntax" % "1.70.0",
+      "com.lihaoyi" %% "os-lib" % "0.11.8",
+      "org.scalameta" %% "munit" % "1.3.0" % Test,
     ),
+    testFrameworks += new TestFramework("munit.Framework"),
     pluginCrossBuild / sbtVersion := {
       scalaBinaryVersion.value match {
         case "2.12" => "1.9.8"
