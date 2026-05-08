@@ -38,7 +38,8 @@ object SmithyBuildSmithy4sPlugin extends AutoPlugin {
   override def requires: Plugins = SmithyBuildPlugin && Smithy4sCodegenPlugin
 
   import SmithyBuildPlugin.autoImport.smithyBuildSettings
-  import Smithy4sCodegenPlugin.autoImport.{ smithy4sInputDirs, Smithy4s }
+  import Smithy4sCodegenPlugin.autoImport.smithy4sInputDirs
+  import Smithy4sCodegenPlugin.autoImport.Smithy4s
 
   override def projectSettings: Seq[Setting[?]] = Seq(
     smithyBuildSettings := SmithyBuild(
