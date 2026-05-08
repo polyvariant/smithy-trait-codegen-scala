@@ -35,6 +35,15 @@ ThisBuild / githubWorkflowAddedJobs ++= ScriptedMatrix.jobs(
   jobSetup = githubWorkflowJobSetup.value.toList,
 )
 
+ThisBuild / githubWorkflowAddedJobs ++= ScriptedMatrix.jobs(
+  moduleId = "sbtPluginSmithy4s",
+  jobIdPrefix = "scripted-smithy4s",
+  scalas = List(scala212, scala3),
+  javas = List(JavaSpec.temurin("17")),
+  oses = (ThisBuild / githubWorkflowOSes).value.toList,
+  jobSetup = githubWorkflowJobSetup.value.toList,
+)
+
 // Upstream `githubWorkflowGenerate` renders all matrix values through `wrap`,
 // which quotes the `${{ fromJSON(...) }}` expression we need for the scripted
 // matrix axis. We work around this with a placeholder + post-process pass.
@@ -45,6 +54,7 @@ ThisBuild / githubWorkflowAddedJobs ++= ScriptedMatrix.jobs(
 // Tracked upstream: https://github.com/typelevel/sbt-typelevel/issues/887
 val patchScriptedMatrix: String => String = ScriptedMatrix
   .patchFor("scripted")
+  .andThen(ScriptedMatrix.patchFor("scripted-smithy4s"))
   // route the in-workflow staleness check through our patched task so it
   // compares apples to apples
   .andThen(_.replace("sbt githubWorkflowCheck", "sbt githubWorkflowCheckWithMatrixPatch"))
@@ -129,6 +139,7 @@ lazy val core = project
       "software.amazon.smithy" % "smithy-model" % "1.70.0",
       "software.amazon.smithy" % "smithy-syntax" % "1.70.0",
       "software.amazon.smithy" % "smithy-docgen" % "1.70.0",
+      "software.amazon.smithy" % "smithy-build" % "1.70.0",
       "com.lihaoyi" %% "os-lib" % "0.11.8",
       "org.scalameta" %% "munit" % "1.3.0" % Test,
     ),
@@ -156,7 +167,31 @@ lazy val sbtPlugin = project
   )
   .enablePlugins(SbtPlugin)
 
+lazy val sbtPluginSmithy4s = project
+  .in(file("sbtPluginSmithy4s"))
+  .dependsOn(sbtPlugin)
+  .settings(
+    name := "smithy-scala-tools-sbt-smithy4s",
+    libraryDependencies += Defaults.sbtPluginExtra(
+      "com.disneystreaming.smithy4s" % "smithy4s-sbt-codegen" % "0.19.4",
+      (pluginCrossBuild / sbtBinaryVersion).value,
+      (update / scalaBinaryVersion).value,
+    ),
+    pluginCrossBuild / sbtVersion := {
+      scalaBinaryVersion.value match {
+        case "2.12" => "1.9.8"
+        case _      => "2.0.0-RC12"
+      }
+    },
+    scriptedLaunchOpts :=
+      scriptedLaunchOpts.value ++
+        Seq("-Xmx1024M", "-Dplugin.version=" + version.value),
+    scriptedBufferLog := false,
+    mimaPreviousArtifacts := Set.empty,
+  )
+  .enablePlugins(SbtPlugin)
+
 lazy val root = project
   .in(file("."))
-  .aggregate(core, sbtPlugin)
+  .aggregate(core, sbtPlugin, sbtPluginSmithy4s)
   .enablePlugins(NoPublishPlugin)

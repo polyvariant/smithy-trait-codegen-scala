@@ -19,6 +19,10 @@ Build-time tooling for working with [Smithy](https://smithy.io) models from Scal
   - [`SmithyDocGenPlugin`](#smithydocgenplugin)
     - [Usage](#usage-1)
     - [Settings](#settings)
+  - [`SmithyBuildPlugin`](#smithybuildplugin)
+    - [Usage](#usage-2)
+    - [Settings](#settings-1)
+    - [`SmithyBuildSmithy4sPlugin` (smithy4s bridge)](#smithybuildsmithy4splugin-smithy4s-bridge)
   - [FAQ](#faq)
     - [What's the difference between this and smithy4s?](#whats-the-difference-between-this-and-smithy4s)
 
@@ -176,6 +180,64 @@ sbt generateSmithyDocs
 | `smithyDocGenSourceDirectory` | `File`           | Where to look for `.smithy` files. Defaults to `Compile / resourceDirectory / META-INF / smithy`. |
 | `smithyDocGenTargetDirectory` | `File`           | Where to write generated docs. Defaults to `Compile / target`.                         |
 
+## `SmithyBuildPlugin`
+
+Provisions a synthetic sbt project per opted-in module that exposes the module's Smithy sources and Maven dependencies to IDE imports. Sbt's existing IDE integrations (IntelliJ's sbt importer, Metals) treat the synthetic project like any other module — Smithy traits resolve, sources show up under their proper roots — without any IDE-specific plumbing.
+
+The synthetic project's id is `<id>-smithyBuild`, where `<id>` is the parent project. Its base directory lives under the parent's `target/` so it never overlaps with the parent's content root. The project carries no compile output of its own — it exists purely to expose source roots and a classpath to the IDE.
+
+### Usage
+
+In `build.sbt`:
+
+```scala
+lazy val foo = project
+  .enablePlugins(SmithyBuildPlugin)
+  .settings(
+    // Read smithy-build.json from baseDirectory.value
+    smithyBuildSettings := loadSmithyBuild().value,
+    // Or: load from a custom location
+    // smithyBuildSettings := loadSmithyBuild(file("custom-build.json")).value,
+    // Or: build it directly
+    // smithyBuildSettings := SmithyBuild(
+    //   sources      = Seq(baseDirectory.value / "model"),
+    //   dependencies = Seq("software.amazon.smithy" % "smithy-trait-codegen" % "1.70.0"),
+    //   resolvers    = Seq(Resolver.mavenLocal, Resolver.DefaultMavenRepository),
+    // ),
+  )
+```
+
+`loadSmithyBuild()` reads `smithy-build.json`, returning `SmithyBuild.empty` when the file is missing — so a typo in the path won't break the IDE import. Source roots come from `sources` and `imports` (file entries fall back to their parent directory). Library deps come from `maven.dependencies`. Resolvers come from `maven.repositories` (or default to Maven Central + local m2 when empty).
+
+### Settings
+
+| Setting               | Type          | Description                                                                                |
+| --------------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| `smithyBuildSettings` | `SmithyBuild` | Effective build config exposed to the synthetic IDE module. Defaults to `SmithyBuild.empty`. |
+
+### `SmithyBuildSmithy4sPlugin` (smithy4s bridge)
+
+Bridges `SmithyBuildPlugin` with [smithy4s](https://disneystreaming.github.io/smithy4s/) by populating `smithyBuildSettings` from the project's smithy4s settings: sources from `Compile / smithy4sInputDirs`, dependencies from `libraryDependencies` filtered to entries in the `Smithy4s` configuration, resolvers from `resolvers` minus Maven Central. Mirrors the conventions of smithy4s's own `smithy4sUpdateLSPConfig` command.
+
+In `project/plugins.sbt`:
+
+```scala
+addSbtPlugin("org.polyvariant" % "smithy-scala-tools-sbt-smithy4s" % version)
+addSbtPlugin("com.disneystreaming.smithy4s" % "smithy4s-sbt-codegen" % "0.19.4")
+```
+
+In `build.sbt`, enable both plugins on a project:
+
+```scala
+lazy val foo = project
+  .enablePlugins(SmithyBuildPlugin, smithy4s.codegen.Smithy4sCodegenPlugin)
+  .settings(
+    libraryDependencies += "com.disneystreaming.alloy" % "alloy-core" % "0.3.23" % Smithy4s,
+  )
+```
+
+`SmithyBuildSmithy4sPlugin` activates automatically when both plugins are enabled (`trigger = allRequirements`). Override `smithyBuildSettings` explicitly to take over the derivation.
+
 ## FAQ
 
 ### What's the difference between this and smithy4s?
@@ -189,5 +251,6 @@ They operate on a different level — they're not alternatives.
 - **`SmithyTraitCodegenPlugin`** is for **protocol authors** — people defining custom Smithy traits and shipping them as artifacts that downstream consumers (including smithy4s users) load via Smithy's model assembler. It generates the Java glue that makes that work.
 - **`SmithyFormatPlugin`** sits **side-by-side with smithy4s**: anyone writing `.smithy` files can use it to keep them formatted, regardless of what (if anything) consumes those models afterwards.
 - **`SmithyDocGenPlugin`** is for **anyone publishing a Smithy-modelled API** who wants browsable documentation for it — it runs AWS's `smithy-docgen` to turn the model into markdown.
+- **`SmithyBuildPlugin`** is for **anyone editing `.smithy` files in an sbt project** who wants their IDE to resolve external trait dependencies. The companion `SmithyBuildSmithy4sPlugin` derives its config from smithy4s settings automatically, so smithy4s users don't have to maintain a parallel `smithy-build.json`.
 
 A project can (and often will) use both this and smithy4s.

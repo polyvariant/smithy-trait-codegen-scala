@@ -32,3 +32,11 @@ pull_request_rules:
       add:
       - sbtPlugin
       remove: []
+- name: Label sbtPluginSmithy4s PRs
+  conditions:
+  - files~=^sbtPluginSmithy4s/
+  actions:
+    label:
+      add:
+      - sbtPluginSmithy4s
+      remove: []

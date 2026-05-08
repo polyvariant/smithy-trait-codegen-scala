@@ -18,102 +18,158 @@ package org.polyvariant.smithybuild
 
 import sbt.*
 import sbt.plugins.JvmPlugin
+import software.amazon.smithy.build.model.SmithyBuildConfig
 
 import java.io.File
+import java.util.Optional
 
 import Keys.*
 
-/** Provisions a synthetic sbt project named `smithy-build-ide` from the contents of
-  * `smithy-build.json` at the build root.
+/** Provisions a synthetic sbt project per opted-in module that exposes the module's Smithy
+  * sources and Maven dependencies to IDE imports.
   *
-  * The synthetic project mirrors the dependency-and-source-root half of the IntelliJ
-  * "Smithy: smithy-build" module: each `sources`/`imports` entry becomes an unmanaged source
-  * directory and each `maven.dependencies` entry becomes a `libraryDependency`. When
-  * `maven.repositories` is non-empty its entries are used as resolvers; otherwise we fall back to
-  * Maven Central and the local m2 cache.
+  * Users enable the plugin on a project and set `smithyBuildSettings` to describe the module:
+  * {{{
+  *   lazy val foo = project
+  *     .enablePlugins(SmithyBuildPlugin)
+  *     .settings(
+  *       smithyBuildSettings := loadSmithyBuild().value, // reads ./smithy-build.json
+  *       // or: smithyBuildSettings := loadSmithyBuild(file("custom-build.json")).value,
+  *       // or build it inline / from libraryDependencies, etc.
+  *     )
+  * }}}
   *
-  * Sbt's IDE integrations (IntelliJ's sbt importer, Metals, etc.) treat the synthetic project as
-  * any other module, so Smithy sources resolve their declared trait dependencies without any
-  * IDE-specific plumbing.
+  * For each project that enables this plugin, [[derivedProjects]] emits a synthetic project
+  * named `<id>-smithyBuild` whose `unmanagedSourceDirectories`, `libraryDependencies`, and
+  * `resolvers` come from the parent's `smithyBuildSettings` setting. Because the synthetic project is a
+  * real sbt project, sbt's IDE integrations (IntelliJ sbt importer, Metals) treat it like any
+  * other module — Smithy traits resolve, sources show up under their proper roots.
   *
-  * The synthetic project's base directory lives under `target/` so it never overlaps with the
-  * root project's `.` content root. The project carries no compile output of its own — it exists
-  * purely to expose source roots and a classpath to the IDE.
+  * The synthetic project's base directory lives under the parent's `target/` so it never
+  * overlaps with the parent's content root. The project carries no compile output of its own —
+  * it exists purely to expose source roots and a classpath to the IDE.
   */
 object SmithyBuildPlugin extends AutoPlugin {
   override def trigger: PluginTrigger = noTrigger
   override def requires: Plugins = JvmPlugin
 
-  /** Identifier of the synthetic sbt project this plugin contributes. */
-  val SyntheticProjectId = "smithy-build-ide"
+  /** Suffix appended to a parent project's id to form its synthetic IDE module's id. */
+  val SyntheticIdSuffix = "-smithyBuild"
 
-  /** Filename of the build configuration consumed by this plugin. */
+  /** Default filename of the build configuration consumed by [[autoImport.loadSmithyBuild]]. */
   val BuildConfigFileName = "smithy-build.json"
 
-  override def extraProjects: Seq[Project] = {
-    // sbt's loader runs with the build's base directory as CWD, so this resolves to the
-    // project root the user invoked sbt from.
-    val baseDir = new File(".").getAbsoluteFile.getParentFile
-    val configFile = new File(baseDir, BuildConfigFileName)
-    if (!configFile.isFile) Nil
+  object autoImport {
+
+    val smithyBuildSettings = settingKey[SmithyBuild](
+      "Sources, Maven dependencies, and resolvers exposed to the synthetic IDE module. " +
+        "Set with `loadSmithyBuild().value` to read smithy-build.json, or build a SmithyBuild value directly."
+    )
+
+    /** Convenience: read `smithy-build.json` from the project base directory. */
+    def loadSmithyBuild(): Def.Initialize[SmithyBuild] = Def.setting {
+      readSmithyBuild(baseDirectory.value / BuildConfigFileName)
+    }
+
+    /** Read an explicit smithy-build.json file. Path is resolved as-is. */
+    def loadSmithyBuild(configFile: File): Def.Initialize[SmithyBuild] = Def.setting {
+      readSmithyBuild(configFile)
+    }
+
+  }
+
+  import autoImport.*
+
+  override def projectSettings: Seq[Setting[?]] = Seq(
+    smithyBuildSettings := SmithyBuild.empty
+  )
+
+  /** For each project that activates this plugin, emit one synthetic IDE module. */
+  override def derivedProjects(proj: ProjectDefinition[?]): Seq[Project] = {
+    val parentId = proj.id
+    val syntheticId = parentId + SyntheticIdSuffix
+    val syntheticBase = proj.base / "target" / syntheticId
+
+    val parent = LocalProject(parentId)
+    Seq(
+      Project(syntheticId, syntheticBase)
+        .settings(
+          name := syntheticId,
+          description := s"Synthetic IDE module derived from $parentId/$BuildConfigFileName",
+          crossPaths := false,
+          autoScalaLibrary := false,
+          Compile / unmanagedSourceDirectories := (parent / smithyBuildSettings).value.sources,
+          Compile / unmanagedResourceDirectories := Nil,
+          Compile / sources := Nil,
+          Compile / managedSources := Nil,
+          Compile / packageBin / publishArtifact := false,
+          Compile / packageDoc / publishArtifact := false,
+          Compile / packageSrc / publishArtifact := false,
+          publish / skip := true,
+          libraryDependencies := (parent / smithyBuildSettings).value.dependencies,
+          resolvers := (parent / smithyBuildSettings).value.resolvers,
+        )
+    )
+  }
+
+  /** Read a smithy-build.json file from disk into a [[SmithyBuild]]. Missing files yield
+    * [[SmithyBuild.empty]] so a typo in the path doesn't break the IDE import.
+    *
+    * The default-resolver fallback (Maven Central + local m2) is applied here, mirroring the
+    * IntelliJ-side behavior in smithy-intellij-plugin#17 when `maven.repositories` is absent.
+    */
+  private def readSmithyBuild(configFile: File): SmithyBuild =
+    if (!configFile.isFile) SmithyBuild.empty
     else {
-      val config = SmithyBuildConfig.read(os.Path(configFile))
-      Seq(buildSyntheticProject(baseDir, config))
+      val config = SmithyBuildConfig.load(configFile.getAbsoluteFile.toPath)
+      val sources = {
+        val it = config.getSources.iterator()
+        val b = List.newBuilder[String]
+        while (it.hasNext) b += it.next()
+        val it2 = config.getImports.iterator()
+        while (it2.hasNext) b += it2.next()
+        b.result().flatMap(resolveSourceRoot).distinct
+      }
+      val maven = optional(config.getMaven)
+      val deps = maven
+        .iterator
+        .flatMap { m =>
+          val it = m.getDependencies.iterator()
+          val b = List.newBuilder[String]
+          while (it.hasNext) b += it.next()
+          b.result().iterator
+        }
+        .flatMap(parseModule)
+        .toList
+      val repos = maven.toList.flatMap { m =>
+        val it = m.getRepositories.iterator()
+        val b = List.newBuilder[Resolver]
+        while (it.hasNext) {
+          val r = it.next()
+          val name = optional(r.getId).getOrElse(r.getUrl)
+          b += MavenRepository(name, r.getUrl)
+        }
+        b.result()
+      } match {
+        case Nil => Seq(Resolver.mavenLocal, Resolver.DefaultMavenRepository)
+        case rs  => rs
+      }
+      SmithyBuild(sources = sources, dependencies = deps, resolvers = repos)
     }
-  }
-
-  private def buildSyntheticProject(baseDir: File, config: SmithyBuildConfig): Project = {
-    val sourceRoots = (config.sources ++ config.imports)
-      .flatMap(resolveSourceRoot(baseDir, _))
-      .distinct
-
-    val deps = config
-      .maven
-      .map(_.dependencies)
-      .getOrElse(Nil)
-      .flatMap(parseModule)
-
-    val repos = config.maven.map(_.repositories).getOrElse(Nil) match {
-      case Nil  => Seq(Resolver.mavenLocal, Resolver.DefaultMavenRepository)
-      case repo =>
-        repo.map(r => MavenRepository(r.id.getOrElse(r.url), r.url))
-    }
-
-    val syntheticBase = new File(baseDir, s"target/$SyntheticProjectId")
-    Project(SyntheticProjectId, syntheticBase)
-      .settings(
-        name := SyntheticProjectId,
-        description := s"Synthetic IDE module derived from $BuildConfigFileName",
-        crossPaths := false,
-        autoScalaLibrary := false,
-        Compile / unmanagedSourceDirectories := sourceRoots,
-        Compile / unmanagedResourceDirectories := Nil,
-        Compile / sources := Nil,
-        Compile / managedSources := Nil,
-        Compile / packageBin / publishArtifact := false,
-        Compile / packageDoc / publishArtifact := false,
-        Compile / packageSrc / publishArtifact := false,
-        publish / skip := true,
-        libraryDependencies ++= deps,
-        resolvers := repos,
-      )
-  }
 
   /** Resolve a `sources`/`imports` entry to a directory suitable for an unmanaged source root.
     *
-    * Directories pass through; files fall back to their containing directory (mirroring the
-    * IntelliJ behavior — sbt source roots must be directories). Missing entries are dropped, on
-    * the assumption that a stale path in `smithy-build.json` shouldn't break IDE import.
+    * `SmithyBuildConfig.load` already resolves entries to absolute paths against the config
+    * file's location, so we treat the input as a finished path. Directories pass through; files
+    * fall back to their containing directory (mirroring the IntelliJ behavior — sbt source roots
+    * must be directories). Missing entries are dropped, so a stale path in `smithy-build.json`
+    * doesn't break IDE import.
     */
-  private def resolveSourceRoot(baseDir: File, raw: String): Option[File] = {
-    val normalized = raw.trim.stripPrefix("./")
-    if (normalized.isEmpty) None
-    else {
-      val target = new File(baseDir, normalized)
-      if (target.isDirectory) Some(target)
-      else if (target.isFile) Option(target.getParentFile)
-      else None
-    }
+  private def resolveSourceRoot(raw: String): Option[File] = {
+    val target = new File(raw)
+    if (target.isDirectory) Some(target)
+    else if (target.isFile) Option(target.getParentFile)
+    else None
   }
 
   /** Parse a `groupId:artifactId:version` coordinate, ignoring malformed entries to keep IDE
@@ -125,4 +181,24 @@ object SmithyBuildPlugin extends AutoPlugin {
       case _                  => None
     }
 
+  private def optional[A](o: Optional[A]): Option[A] =
+    if (o.isPresent) Some(o.get()) else None
+
+}
+
+/** What the plugin actually consumes when populating the synthetic IDE module.
+  *
+  * Build a value either with
+  * [[org.polyvariant.smithybuild.SmithyBuildPlugin.autoImport.loadSmithyBuild]] (parses
+  * `smithy-build.json`) or directly (e.g. derive sources from a directory and dependencies from
+  * a filtered `libraryDependencies`).
+  */
+final case class SmithyBuild(
+  sources: Seq[File],
+  dependencies: Seq[ModuleID],
+  resolvers: Seq[Resolver],
+)
+
+object SmithyBuild {
+  val empty: SmithyBuild = SmithyBuild(Nil, Nil, Nil)
 }
