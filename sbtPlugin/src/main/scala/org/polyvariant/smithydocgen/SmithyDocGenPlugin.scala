@@ -19,6 +19,8 @@ package org.polyvariant.smithydocgen
 import org.polyvariant.smithytraitcodegen.PathRef
 import sbt.*
 import sbt.plugins.JvmPlugin
+import software.amazon.smithy.model.node.Node
+import software.amazon.smithy.model.node.ObjectNode
 
 import java.io.File
 
@@ -56,17 +58,27 @@ object SmithyDocGenPlugin extends AutoPlugin {
       "The directory where the generated documentation will be placed"
     )
 
+    val smithyDocGenOutputDirectory = settingKey[File](
+      "The directory containing the generated documentation. " +
+        "Defaults to smithyDocGenTargetDirectory / 'smithy-docgen-output'."
+    )
+
+    val smithyDocGenSettings = settingKey[ObjectNode](
+      "The smithy-docgen settings ObjectNode. Defaults to a node derived from " +
+        "smithyDocGenService and smithyDocGenFormat. Override with `:=` for full control, " +
+        "or transform with `~=` to add/replace specific fields."
+    )
+
   }
 
   import autoImport.*
 
-  // Sbt-cache key: like SmithyDocGen.Args, but path fields use PathRef so that
-  // file content participates in the cache hash. The runtime call into the core
-  // docgen converts this back to a plain SmithyDocGen.Args.
+  // Sbt-cache key: paths use PathRef so file content participates in the hash.
+  // `settings` is the fully-resolved smithy-docgen settings node serialized to a
+  // String, which collapses service/format/extra knobs into a single stable key.
   private case class CacheArgs(
-    service: String,
-    format: Format,
-    targetDir: os.Path,
+    settings: String,
+    outputDir: os.Path,
     smithySourcesDir: PathRef,
     dependencies: List[PathRef],
   )
@@ -80,55 +92,32 @@ object SmithyDocGenPlugin extends AutoPlugin {
     private implicit val pathFormat: JsonFormat[os.Path] = BasicJsonProtocol
       .projectFormat[os.Path, File](p => p.toIO, file => os.Path(file))
 
-    // Cache hashing only — formats are flattened to a stable string representation.
-    // SphinxMarkdown's nested options are part of the hash so they invalidate the cache
-    // when changed.
-    private implicit val formatFmt: JsonFormat[Format] = BasicJsonProtocol
-      .projectFormat[Format, String](
-        {
-          case SmithyDocGen.Format.Markdown          => "markdown"
-          case s: SmithyDocGen.Format.SphinxMarkdown =>
-            "sphinx-markdown" +
-              s";sphinxFormat=${s.sphinxFormat.getOrElse("")}" +
-              s";theme=${s.theme.getOrElse("")}" +
-              s";extraDependencies=${s.extraDependencies.mkString(",")}" +
-              s";extraExtensions=${s.extraExtensions.mkString(",")}" +
-              s";autoBuild=${s.autoBuild}"
-        },
-        // Cache hashing only — never round-tripped to a Format value.
-        _ => sys.error("Format JsonFormat is hash-only and not deserializable"),
-      )
-
     implicit val argsFmt: JsonFormat[CacheArgs] =
       caseClass(
         (
-          service: String,
-          format: Format,
-          targetDir: os.Path,
+          settings: String,
+          outputDir: os.Path,
           smithySourcesDir: PathRef,
           dependencies: List[PathRef],
         ) =>
           CacheArgs(
-            service,
-            format,
-            targetDir,
+            settings,
+            outputDir,
             smithySourcesDir,
             dependencies,
           ),
         (a: CacheArgs) =>
           Some(
             (
-              a.service,
-              a.format,
-              a.targetDir,
+              a.settings,
+              a.outputDir,
               a.smithySourcesDir,
               a.dependencies,
             )
           ),
       )(
-        "service",
-        "format",
-        "targetDir",
+        "settings",
+        "outputDir",
         "smithySourcesDir",
         "dependencies",
       )
@@ -162,9 +151,8 @@ object SmithyDocGenPlugin extends AutoPlugin {
 
   private def runDocGen(cache: CacheArgs): Output = {
     val core = SmithyDocGen.Args(
-      service = cache.service,
-      format = cache.format,
-      targetDir = cache.targetDir,
+      settings = Node.parse(cache.settings).expectObjectNode(),
+      outputDir = cache.outputDir,
       smithySourcesDir = cache.smithySourcesDir.path,
       dependencies = cache.dependencies.map(_.path),
     )
@@ -175,8 +163,13 @@ object SmithyDocGenPlugin extends AutoPlugin {
   override def projectSettings: Seq[Setting[?]] = Seq(
     smithyDocGenSourceDirectory := (Compile / resourceDirectory).value / "META-INF" / "smithy",
     smithyDocGenTargetDirectory := (Compile / target).value,
+    smithyDocGenOutputDirectory := smithyDocGenTargetDirectory.value / "smithy-docgen-output",
     smithyDocGenFormat := Format.Markdown,
     smithyDocGenDependencies := Nil,
+    smithyDocGenSettings := SmithyDocGen.buildSettings(
+      smithyDocGenService.value,
+      smithyDocGenFormat.value,
+    ),
     Keys.generateSmithyDocs := Def.task {
       import sbt.util.CacheImplicits.*
       implicit val docgenCache: sbt.util.Cache[CacheArgs, Output] = new sbt.util.BasicCache()
@@ -195,9 +188,8 @@ object SmithyDocGenPlugin extends AutoPlugin {
       )
 
       val cacheArgs = CacheArgs(
-        service = smithyDocGenService.value,
-        format = smithyDocGenFormat.value,
-        targetDir = os.Path(smithyDocGenTargetDirectory.value),
+        settings = Node.printJson(smithyDocGenSettings.value),
+        outputDir = os.Path(smithyDocGenOutputDirectory.value),
         smithySourcesDir = PathRef(smithyDocGenSourceDirectory.value),
         dependencies = jars.map(PathRef(_)).toList,
       )
