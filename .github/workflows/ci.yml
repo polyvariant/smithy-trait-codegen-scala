@@ -199,7 +199,7 @@ jobs:
           configs-ignore: test scala-tool scala-doc-tool test-internal
 
   scripted-discover:
-    name: Scripted (discover tests)
+    name: Scripted (discover sbtPlugin tests)
     strategy:
       matrix:
         os: [ubuntu-22.04]
@@ -221,7 +221,7 @@ jobs:
           echo "Discovered: $tests"
 
   scripted:
-    name: Scripted
+    name: Scripted (sbtPlugin)
     needs: [scripted-discover]
     strategy:
       matrix:
@@ -253,4 +253,4 @@ jobs:
         run: sbt +update
 
       - name: Run scripted ${{ matrix.test }}
-        run: sbt '++ ${{ matrix.scala }}' 'scripted ${{ matrix.test }}'
+        run: sbt '++ ${{ matrix.scala }}' 'sbtPlugin/scripted ${{ matrix.test }}'
