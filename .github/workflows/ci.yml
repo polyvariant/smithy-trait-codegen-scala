@@ -74,11 +74,11 @@ jobs:
 
       - name: Make target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        run: mkdir -p core/target sbtPlugin/target project/target
+        run: mkdir -p core/target sbtPlugin/target sbtPluginSmithy4s/target project/target
 
       - name: Compress target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-        run: tar cf targets.tar core/target sbtPlugin/target project/target
+        run: tar cf targets.tar core/target sbtPlugin/target sbtPluginSmithy4s/target project/target
 
       - name: Upload target directories
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
@@ -254,3 +254,60 @@ jobs:
 
       - name: Run scripted ${{ matrix.test }}
         run: sbt '++ ${{ matrix.scala }}' 'sbtPlugin/scripted ${{ matrix.test }}'
+
+  scripted-smithy4s-discover:
+    name: Scripted (discover sbtPluginSmithy4s tests)
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        java: [temurin@17]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      tests: ${{ steps.list.outputs.tests }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: List scripted test folders
+        id: list
+        run: |
+          tests=$(find sbtPluginSmithy4s/src/sbt-test -mindepth 2 -maxdepth 2 -type d | sed 's|sbtPluginSmithy4s/src/sbt-test/||' | jq -R . | jq -sc .)
+          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          echo "Discovered: $tests"
+
+  scripted-smithy4s:
+    name: Scripted (sbtPluginSmithy4s)
+    needs: [scripted-smithy4s-discover]
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        scala: [2.12.21, 3.8.3]
+        java: [temurin@17]
+        test: ${{ fromJSON(needs.scripted-smithy4s-discover.outputs.tests) }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (full)
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
+
+      - name: Setup Java (temurin@17)
+        id: setup-java-temurin-17
+        if: matrix.java == 'temurin@17'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: sbt
+
+      - name: sbt update
+        if: matrix.java == 'temurin@17' && steps.setup-java-temurin-17.outputs.cache-hit == 'false'
+        run: sbt +update
+
+      - name: Run scripted ${{ matrix.test }}
+        run: sbt '++ ${{ matrix.scala }}' 'sbtPluginSmithy4s/scripted ${{ matrix.test }}'
