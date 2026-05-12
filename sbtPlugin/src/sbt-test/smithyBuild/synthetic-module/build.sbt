@@ -1,7 +1,7 @@
 val core = project
   .enablePlugins(SmithyBuildPlugin)
   .settings(
-    smithyBuildSettings := loadSmithyBuild().value,
+    smithyBuildSettings := loadSmithyBuild().value
   )
 
 val root = project
@@ -19,7 +19,9 @@ checkSyntheticProject := {
     .find(_.project == "core-smithyBuild")
     .getOrElse(sys.error("core-smithyBuild project was not derived"))
 
-  val coreBase = (LocalProject("core") / baseDirectory).get(structure.data).getOrElse(sys.error("no core base"))
+  val coreBase = (LocalProject("core") / baseDirectory)
+    .get(structure.data)
+    .getOrElse(sys.error("no core base"))
 
   val srcDirs = (ide / Compile / unmanagedSourceDirectories).get(structure.data).getOrElse(Nil)
   val modelDir = coreBase / "model"
@@ -27,7 +29,10 @@ checkSyntheticProject := {
     sys.error(s"unmanagedSourceDirectories did not contain $modelDir; got: $srcDirs")
 
   val deps = (ide / libraryDependencies).get(structure.data).getOrElse(Nil)
-  if (!deps.exists(m => m.organization == "software.amazon.smithy" && m.name == "smithy-trait-codegen"))
+  if (
+    !deps
+      .exists(m => m.organization == "software.amazon.smithy" && m.name == "smithy-trait-codegen")
+  )
     sys.error(s"libraryDependencies missing smithy-trait-codegen; got: $deps")
 
   val resolversValue = (ide / resolvers).get(structure.data).getOrElse(Nil)
