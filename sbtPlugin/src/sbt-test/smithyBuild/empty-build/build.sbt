@@ -2,7 +2,7 @@ val root = project
   .in(file("."))
   .enablePlugins(SmithyBuildPlugin)
   .settings(
-    smithyBuildSettings := loadSmithyBuild().value,
+    smithyBuildSettings := loadSmithyBuild().value
   )
 
 val checkSyntheticProject = taskKey[Unit](

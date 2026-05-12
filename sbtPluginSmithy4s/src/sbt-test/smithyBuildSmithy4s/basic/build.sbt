@@ -5,7 +5,7 @@ val core = project
   .settings(
     libraryDependencies ++= Seq(
       "com.disneystreaming.alloy" % "alloy-core" % "0.3.23" % Smithy4s
-    ),
+    )
   )
 
 val root = project
