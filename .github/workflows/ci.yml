@@ -55,7 +55,7 @@ jobs:
         run: sbt +update
 
       - name: Check that workflows are up to date
-        run: sbt githubWorkflowCheckWithMatrixPatch
+        run: sbt githubWorkflowCheck
 
       - name: Check headers and formatting
         if: matrix.java == 'temurin@17' && matrix.os == 'ubuntu-22.04'
@@ -198,6 +198,31 @@ jobs:
           modules-ignore: root_2.12 root_3
           configs-ignore: test scala-tool scala-doc-tool test-internal
 
+  validate-steward:
+    name: Validate Steward Config
+    strategy:
+      matrix:
+        os: [ubuntu-22.04]
+        java: [temurin@11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout current branch (fast)
+        uses: actions/checkout@v6
+
+      - name: Setup Java (temurin@11)
+        id: setup-java-temurin-11
+        if: matrix.java == 'temurin@11'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 11
+
+      - uses: coursier/setup-action@v1
+        with:
+          apps: scala-steward
+
+      - run: scala-steward validate-repo-config .scala-steward.conf
+
   scripted-discover:
     name: Scripted (discover sbtPlugin tests)
     strategy:
@@ -228,7 +253,7 @@ jobs:
         os: [ubuntu-22.04]
         scala: [2.12.21, 3.8.3]
         java: [temurin@17]
-        test: ${{ fromJSON(needs.scripted-discover.outputs.tests) }}
+        test: [PATCH_scripted_tests_from_needs]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)
@@ -285,7 +310,7 @@ jobs:
         os: [ubuntu-22.04]
         scala: [2.12.21, 3.8.3]
         java: [temurin@17]
-        test: ${{ fromJSON(needs.scripted-smithy4s-discover.outputs.tests) }}
+        test: [PATCH_scripted_smithy4s_tests_from_needs]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout current branch (full)
